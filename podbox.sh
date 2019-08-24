@@ -4,16 +4,17 @@ set -e
 
 function show_ussage_message() {
   echo "Usage: podbox.sh command [OPTIONS]"
-  echo "  container create containerName            Create container"
+  echo "  container create containerName             Create container"
   echo "    Options:"
-	echo "      --map-user                             Map host user to user with same uid inside the container"
-	echo "      --audio                                Expose pulseaudio sound server inside the container"
-	echo "      --x11                                  Expose X11 socket inside the container"
-	echo "      --volume path[:mount[:ro|rslave]]      Bind mount a volume into the container"
-	echo "      --ipc                                  IPC namespace to use"
-  echo "  container delete containerName            Delete container"
-  echo "  container bash containerName              Enter container bash"
-  echo "  container exec containerName command      Run command inside container"
+	echo "      --map-user                              Map host user to user with same uid inside the container"
+	echo "      --audio                                 Expose pulseaudio sound server inside the container"
+	echo "      --x11                                   Expose X11 socket inside the container"
+	echo "      --volume path[:mount[:ro|rslave]]       Bind mount a volume into the container"
+	echo "      --ipc                                   IPC namespace to use"
+  echo "  container delete containerName             Delete container"
+  echo "  container bash containerName               Enter container bash"
+  echo "  container exec containerName command       Run command inside container"
+  echo "  sandbox create containerName sandboxName   Create immutable sandbox from container"
 }
 
 function container_create() {
@@ -45,7 +46,8 @@ function container_create() {
   set -- "${params[@]}"
 
   if [ "$#" -lt "1" ]; then
-    echo "Error: Illegal count of operations"
+    echo "Error: Illegal count of arguments"
+    echo ""
     show_ussage_message
     exit 1
   fi
@@ -64,7 +66,8 @@ function container_create() {
 
 function container_delete() {
   if [ "$#" -ne "1" ]; then
-    echo "Error: Illegal count of operations"
+    echo "Error: Illegal count of arguments"
+    echo ""
     show_ussage_message
     exit 1
   fi
@@ -78,7 +81,8 @@ function container_delete() {
 
 function container_bash() {
   if [ "$#" -ne "1" ]; then
-    echo "Error: Illegal count of operations"
+    echo "Error: Illegal count of arguments"
+    echo ""
     show_ussage_message
     exit 1
   fi
@@ -90,7 +94,8 @@ function container_bash() {
 
 function container_exec() {
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of operations"
+    echo "Error: Illegal count of arguments"
+    echo ""
     show_ussage_message
     exit 1
   fi
@@ -157,6 +162,19 @@ function get_options() {
   echo "${options[@]}" "${volumes[@]}"
 }
 
+function sandbox_create() {
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    echo ""
+    show_ussage_message
+    exit 1
+  fi
+
+  local container="$1"
+  local image="$2"
+  podman commit "$container" "$image"
+}
+
 function start() {
   if [ "$#" -lt "2" ]; then
     show_ussage_message
@@ -170,6 +188,7 @@ function start() {
     "container delete") container_delete "$@";;
     "container bash") container_bash "$@";;
     "container exec") container_exec "$@";;
+    "sandbox create") sandbox_create "$@";;
     *) show_ussage_message;;
   esac
 }
