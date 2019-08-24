@@ -3,8 +3,8 @@
 set -e
 
 function show_ussage_message() {
-  echo "Usage: podbox.sh command [OPTIONS]"
-  echo "  container create containerName             Create container"
+  echo "Usage: podbox.sh command"
+  echo "  container create containerName [OPTIONS]    Create container"
   echo "    Options:"
 	echo "      --map-user                              Map host user to user with same uid inside the container"
 	echo "      --audio                                 Expose pulseaudio sound server inside the container"
@@ -53,11 +53,9 @@ function container_create() {
   fi
 
   local name="$1"; shift;
-  local options=$(get_options "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
-  echo "$options"
-
-  eval "podman create $options --name $name --hostname $name registry.fedoraproject.org/fedora:30"
+  eval "podman create $options --user root registry.fedoraproject.org/fedora:30"
   podman start "$name"
 
   local user_id=$(id -ru)
@@ -107,16 +105,19 @@ function container_exec() {
 }
 
 function get_options() {
-  local isX11="$1";
-  local isAudio="$2";
-  local isIpc="$3";
-  local isUserMapping="$4";
+  local name="$1";
+  local isX11="$2";
+  local isAudio="$3";
+  local isIpc="$4";
+  local isUserMapping="$5";
   local isDisableSecurity=false
-  local volumes="$5"
+  local volumes="$6"
 
   local options=""
+  options+=" --name $name"
+  options+=" --hostname $name"
   options+=" --interactive"
-  options+=" --user root:root"
+  options+=" --tty"
   options+=" --env LANG=C.UTF-8"
   options+=" --env TERM=${TERM}"
 
@@ -175,6 +176,47 @@ function sandbox_create() {
   podman commit "$container" "$image"
 }
 
+function sandbox_bash() {
+  local isX11=false;
+  local isAudio=false;
+  local isIpc=false;
+  local isUserMapping=false;
+  local volumes=""
+  local params=()
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--X11") isX11=true;;
+      "--audio") isAudio=true;;
+      "--ipc") isIpc=true;;
+      "--user-mapping") isUserMapping=true;;
+      "--volume")
+        volumes+=" --volume $2"
+        shift;;
+      -*)
+        echo "Error: unknown flag: $1"
+        echo ""
+        show_ussage_message
+        exit 1;;
+      *)params+=("$1");;
+    esac
+    shift
+  done
+  set -- "${params[@]}"
+
+  if [ "$#" -lt "1" ]; then
+    echo "Error: Illegal count of arguments"
+    echo ""
+    show_ussage_message
+    exit 1
+  fi
+
+  local name="$1"; shift;
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
+
+  eval "podman run $options --rm --user user localhost/$name /bin/bash"
+}
+
 function start() {
   if [ "$#" -lt "2" ]; then
     show_ussage_message
@@ -189,6 +231,7 @@ function start() {
     "container bash") container_bash "$@";;
     "container exec") container_exec "$@";;
     "sandbox create") sandbox_create "$@";;
+    "sandbox bash") sandbox_bash "$@";;
     *) show_ussage_message;;
   esac
 }
