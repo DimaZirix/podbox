@@ -24,6 +24,9 @@ function container_create() {
       "--volume")
         volumes+=" --volume $2"
         shift;;
+      "--share")
+        volumes+=" --volume $2:$2"
+        shift;;
       -*)
         echo "Error: unknown flag: $1"
         echo ""
