@@ -12,7 +12,7 @@ function show_ussage_message() {
 	echo "      --volume path[:mount[:ro|rslave]]       Bind mount a volume into the container"
 	echo "      --ipc                                   IPC namespace to use"
   echo "  container delete containerName             Delete container"
-  echo "  container bash containerName               Enter container bash"
+  echo "  container bash containerName [--root]      Enter container bash"
   echo "  container exec containerName command       Run command inside container"
   echo "  sandbox create containerName sandboxName   Create immutable sandbox from sandbox"
   echo "  sandbox bash sandboxName [OPTIONS]         Enter sandbox bash"
@@ -22,6 +22,7 @@ function show_ussage_message() {
 	echo "      --x11                                   Expose X11 socket inside the container"
 	echo "      --volume path[:mount[:ro|rslave]]       Bind mount a volume into the container"
 	echo "      --ipc                                   IPC namespace to use"
+	echo "      --root                                  Execute as root"
   echo "  sandbox exec sandboxName command [OPTIONS] Run command inside sandbox"
   echo "    Options:"
 	echo "      --map-user                              Map host user to user with same uid inside the container"
@@ -29,6 +30,7 @@ function show_ussage_message() {
 	echo "      --x11                                   Expose X11 socket inside the container"
 	echo "      --volume path[:mount[:ro|rslave]]       Bind mount a volume into the container"
 	echo "      --ipc                                   IPC namespace to use"
+	echo "      --root                                  Execute as root"
   echo "  sandbox delete sandboxName                 Delete sandbox"
 }
 
@@ -93,6 +95,23 @@ function container_delete() {
 }
 
 function container_bash() {
+  local userName="user";
+
+  local params=()
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--root") userName="root";;
+      -*)
+        echo "Error: unknown flag: $1"
+        echo ""
+        show_ussage_message
+        exit 1;;
+      *)params+=("$1");;
+    esac
+    shift
+  done
+  set -- "${params[@]}"
+
   if [ "$#" -ne "1" ]; then
     echo "Error: Illegal count of arguments"
     echo ""
@@ -102,7 +121,7 @@ function container_bash() {
 
   local name="$1"
   podman start "$name"
-  podman exec --interactive --tty --user user "$name" /bin/bash
+  podman exec --interactive --tty --user $userName "$name" /bin/bash
 }
 
 function container_exec() {
@@ -198,9 +217,11 @@ function sandbox_bash() {
   local isUserMapping=false;
   local volumes=""
   local params=()
+  local userName="user"
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
+      "--root") userName="root";;
       "--X11") isX11=true;;
       "--audio") isAudio=true;;
       "--ipc") isIpc=true;;
@@ -229,7 +250,7 @@ function sandbox_bash() {
   local name="sandbox_$1";
   local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
-  eval "podman run $options --rm --user user localhost/$name /bin/bash"
+  eval "podman run $options --rm --user $userName localhost/$name /bin/bash"
 }
 
 function sandbox_exec() {
@@ -239,9 +260,11 @@ function sandbox_exec() {
   local isUserMapping=false;
   local volumes=""
   local params=()
+  local userName="user"
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
+      "--root") userName="root";;
       "--X11") isX11=true;;
       "--audio") isAudio=true;;
       "--ipc") isIpc=true;;
@@ -271,7 +294,7 @@ function sandbox_exec() {
   local command="$2";
   local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
-  eval "podman run $options --rm --user user localhost/$name $command"
+  eval "podman run $options --rm --user $userName localhost/$name $command"
 }
 
 function sandbox_delete() {
