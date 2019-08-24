@@ -5,6 +5,9 @@ set -e
 function show_ussage_message() {
   echo "Usage: podbox.sh command [OPTIONS]"
   echo "  container create containerName            Create container"
+  echo "  container delete containerName            Delete container"
+  echo "  container bash containerName              Enter container bash"
+  echo "  container exec containerName command      Run command inside container"
 }
 
 function container_create() {
@@ -104,7 +107,7 @@ function get_options() {
   local volumes="$5"
 
   local options=""
-  options+=" --interactive"
+  #options+=" --interactive"
   options+=" --user root:root"
   options+=" --env LANG=C.UTF-8"
   options+=" --env TERM=${TERM}"
