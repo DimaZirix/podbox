@@ -14,7 +14,10 @@ function show_ussage_message() {
   echo "  container delete containerName             Delete container"
   echo "  container bash containerName               Enter container bash"
   echo "  container exec containerName command       Run command inside container"
-  echo "  sandbox create containerName sandboxName   Create immutable sandbox from container"
+  echo "  sandbox create containerName sandboxName   Create immutable sandbox from sandbox"
+  echo "  sandbox bash sandboxName                   Enter sandbox bash"
+  echo "  sandbox exec sandboxName command           Run command inside sandbox"
+  echo "  sandbox delete sandboxName                 Delete sandbox"
 }
 
 function container_create() {
@@ -73,7 +76,7 @@ function container_delete() {
   set +e
 
   local name="$1"
-  eval "podman stop $name --timeout 1"
+  eval "podman stop $name --timeout 1 2> /dev/null"
   eval "podman rm $name"
 }
 
@@ -211,10 +214,67 @@ function sandbox_bash() {
     exit 1
   fi
 
-  local name="$1"; shift;
+  local name="$1";
   local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
   eval "podman run $options --rm --user user localhost/$name /bin/bash"
+}
+
+function sandbox_exec() {
+  local isX11=false;
+  local isAudio=false;
+  local isIpc=false;
+  local isUserMapping=false;
+  local volumes=""
+  local params=()
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--X11") isX11=true;;
+      "--audio") isAudio=true;;
+      "--ipc") isIpc=true;;
+      "--user-mapping") isUserMapping=true;;
+      "--volume")
+        volumes+=" --volume $2"
+        shift;;
+      -*)
+        echo "Error: unknown flag: $1"
+        echo ""
+        show_ussage_message
+        exit 1;;
+      *)params+=("$1");;
+    esac
+    shift
+  done
+  set -- "${params[@]}"
+
+  if [ "$#" -lt "1" ]; then
+    echo "Error: Illegal count of arguments"
+    echo ""
+    show_ussage_message
+    exit 1
+  fi
+
+  local name="$1";
+  local command="$2";
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
+
+  eval "podman run $options --rm --user user localhost/$name $command"
+}
+
+function sandbox_delete() {
+  if [ "$#" -ne "1" ]; then
+    echo "Error: Illegal count of arguments"
+    echo ""
+    show_ussage_message
+    exit 1
+  fi
+
+  set +e
+
+  local name="$1"
+  eval "podman stop $name --timeout 1 2> /dev/null"
+  eval "podman rmi $name"
 }
 
 function start() {
@@ -232,6 +292,8 @@ function start() {
     "container exec") container_exec "$@";;
     "sandbox create") sandbox_create "$@";;
     "sandbox bash") sandbox_bash "$@";;
+    "sandbox exec") sandbox_exec "$@";;
+    "sandbox delete") sandbox_delete "$@";;
     *) show_ussage_message;;
   esac
 }
