@@ -187,7 +187,7 @@ function sandbox_create() {
   fi
 
   local container="$1"
-  local image="$2"
+  local image="sandbox_$2"
   podman commit "$container" "$image"
 }
 
@@ -226,7 +226,7 @@ function sandbox_bash() {
     exit 1
   fi
 
-  local name="$1";
+  local name="sandbox_$1";
   local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
   eval "podman run $options --rm --user user localhost/$name /bin/bash"
@@ -267,7 +267,7 @@ function sandbox_exec() {
     exit 1
   fi
 
-  local name="$1";
+  local name="sandbox_$1";
   local command="$2";
   local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
 
@@ -284,7 +284,7 @@ function sandbox_delete() {
 
   set +e
 
-  local name="$1"
+  local name="sandbox_$1"
   eval "podman stop $name --timeout 1 2> /dev/null"
   eval "podman rmi $name"
 }
