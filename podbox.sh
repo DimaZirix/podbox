@@ -5,6 +5,12 @@ set -e
 function show_ussage_message() {
   echo "Usage: podbox.sh command [OPTIONS]"
   echo "  container create containerName            Create container"
+  echo "    Options:"
+	echo "      --map-user    Map host user to user with same uid inside the container"
+	echo "      --audio       Expose pulseaudio sound server inside the container"
+	echo "      --x11         Expose X11 socket inside the container"
+	echo "      --volume      Bind mount a volume into the container"
+	echo "      --ipc         IPC namespace to use"
   echo "  container delete containerName            Delete container"
   echo "  container bash containerName              Enter container bash"
   echo "  container exec containerName command      Run command inside container"
@@ -26,9 +32,6 @@ function container_create() {
       "--user-mapping") isUserMapping=true;;
       "--volume")
         volumes+=" --volume $2"
-        shift;;
-      "--share")
-        volumes+=" --volume $2:$2"
         shift;;
       -*)
         echo "Error: unknown flag: $1"
