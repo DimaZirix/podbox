@@ -577,6 +577,12 @@ function action_security() {
 }
 
 function entry() {
+  if [ "$#" -eq "0" ]; then
+    show_ussage_message
+    exit 1
+  fi
+
+
   local action="$1"
   shift
 
