@@ -72,6 +72,10 @@ function parse_config_params() {
   parse_params=$@
 }
 
+function gen_podman_options() {
+  echo ""
+}
+
 function action_create() {
   local box_name="$1"
   shift
@@ -85,7 +89,15 @@ function action_create() {
     exit 1
   fi
 
+  local user_id=$(id -ru)
+  local options=$(gen_podman_options)
 
+  podman create --interactive --tty --name "$box_name" --user root registry.fedoraproject.org/fedora:30
+  podman start "$box_name"
+  podman exec --user root "$box_name" useradd --uid "$user_id" user
+  podman stop "$box_name"
+  podman commit "$box_name" "$box_name"
+  eval "podman create $options --user user $box_name"
 
   write_settings_file "$box_name"
 
