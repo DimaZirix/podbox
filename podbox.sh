@@ -19,17 +19,18 @@ function action_create() {
   shift
   parse_container_params "$@"
 
-
   echo "$box_name"
 }
 
 function entry() {
-  case "$1" in
-  "create")
-    shift
-    action_create "$@"
-    ;;
-  *) show_ussage_message ;;
+  read_settings_file
+
+  local action="$1"
+  shift
+
+  case "$action" in
+    "create") action_create "$@";;
+    *) show_ussage_message ;;
   esac
 }
 
