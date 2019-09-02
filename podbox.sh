@@ -155,6 +155,10 @@ function gen_podman_options() {
     podman_options+=" --security-opt label=disable"
     podman_options+=" --security-opt seccomp=unconfined"
   fi
+
+  for volume in "${container_volumes[@]}"; do
+    podman_options+=" --volume ${volume}"
+  done
 }
 
 function action_create() {
@@ -203,14 +207,56 @@ function action_remove() {
   podman rm "$container_name"
 }
 
+function action_volume_add() {
+  local box_name="$1"
+  shift
+  local host_path="$1"
+  shift
+  local container_point="$host_path"
+  local mount_type=""
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--to")
+        container_point="$2"
+        shift;;
+      "--type")
+        mount_type=":$2"
+        shift;;
+      *)
+        echo "Error: unknown flag: $1"
+        show_ussage_message
+        exit 1;;
+    esac
+    shift
+  done
+
+  local local_point="$2"
+  local container_point="$3"
+  local mount_value="$local_point:$container_point$mount_type"
+
+  container_volumes+=(${"$mount_value"})
+}
+
+function action_volume() {
+  local action="$1"
+  shift
+
+  case "$action" in
+    "add") action_volume_add "$@" ;;
+    *) show_ussage_message ;;
+  esac
+}
+
 function entry() {
   local action="$1"
   shift
 
   case "$action" in
-  "create") action_create "$@" ;;
-  "remove") action_remove "$@" ;;
-  *) show_ussage_message ;;
+    "create") action_create "$@" ;;
+    "remove") action_remove "$@" ;;
+    "volume") action_volume "$@" ;;
+    *) show_ussage_message ;;
   esac
 }
 
