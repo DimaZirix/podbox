@@ -231,11 +231,13 @@ function action_volume_add() {
     shift
   done
 
-  local local_point="$2"
-  local container_point="$3"
-  local mount_value="$local_point:$container_point$mount_type"
+  local mount_value="$host_path:$container_point$mount_type"
 
-  container_volumes+=(${"$mount_value"})
+  read_settings_file "$box_name"
+
+  container_volumes+=("${mount_value}")
+
+  write_settings_file "$box_name"
 }
 
 function action_volume() {
