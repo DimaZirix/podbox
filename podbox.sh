@@ -38,7 +38,6 @@ function write_settings_file() {
   echo '#volumes' >"$config_file"
   for volume in "${container_volumes[@]}"; do
     echo "$volume" >>"$config_file"
-    echo "vol"
   done
   echo '#end' >>"$config_file"
 
@@ -57,6 +56,9 @@ function parse_config_params() {
       "--ipc") container_params["ipc"]="on";;
       "--map-user") container_params["map-user"]="on";;
       "--net") container_params["net"]="on";;
+      "--security")
+        container_params["security"]="$2"
+        shift;;
       "--volume")
         container_volumes+=("$2")
         shift;;
@@ -73,7 +75,65 @@ function parse_config_params() {
 }
 
 function gen_podman_options() {
-  echo ""
+  podman_options=""
+  podman_options+=" --name $1"
+  podman_options+=" --hostname $1"
+  podman_options+=" --interactive"
+  podman_options+=" --tty"
+  podman_options+=" --env LANG=C.UTF-8"
+  podman_options+=" --env TERM=${TERM}"
+
+  if [ "${container_params["net"]}" = "on" ]; then
+    podman_options+=" --network slirp4netns"
+  else
+    podman_options+=" --network none"
+  fi
+
+  if [ "${container_params["ipc"]}" = "on" ]; then
+    podman_options+=" --ipc host"
+  fi
+
+  # X11 Mapping
+  if [ "${container_params["gui"]}" = "on" ]; then
+    podman_options+=" --env "DISPLAY=${DISPLAY}""
+    podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix"
+    podman_options+=" --device /dev/dri"
+
+    container_params["map-user"]="on"
+    if [ "${container_params["security"]}" = "" ]; then
+      container_params["security"]="off"
+    fi
+  fi
+
+  # PulseAudio
+  if [ "${container_params["audio"]}" = "on" ]; then
+    podman_options+=" --volume /etc/machine-id:/etc/machine-id:ro"
+    podman_options+=" --env XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
+    podman_options+=" --volume ${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native"
+
+    container_params["map-user"]="on"
+    if [ "${container_params["security"]}" = "" ]; then
+      container_params["security"]="off"
+    fi
+  fi
+
+  # Current user mapping
+  if [ "${container_params["map-user"]}" = "on" ]; then
+    local id_real=$(id -ru)
+    local uid_count=65536
+    local minus_uid=$((uid_count - id_real))
+    local plus_uid=$((id_real + 1))
+    podman_options+=" --uidmap ${id_real}:0:1"
+    podman_options+=" --uidmap 0:1:${id_real}"
+    podman_options+=" --uidmap ${plus_uid}:${plus_uid}:${minus_uid}"
+  fi
+
+  if [ "${container_params["security"]}" = "off" ]; then
+    podman_options+=" --security-opt label=disable"
+  elif [ "${container_params["security"]}" = "unconfined" ]; then
+    podman_options+=" --security-opt label=disable"
+    podman_options+=" --security-opt seccomp=unconfined"
+  fi
 }
 
 function action_create() {
@@ -90,18 +150,16 @@ function action_create() {
   fi
 
   local user_id=$(id -ru)
-  local options=$(gen_podman_options)
+  gen_podman_options "$box_name"
 
   podman create --interactive --tty --name "$box_name" --user root registry.fedoraproject.org/fedora:30
   podman start "$box_name"
   podman exec --user root "$box_name" useradd --uid "$user_id" user
   podman stop "$box_name"
   podman commit "$box_name" "$box_name"
-  eval "podman create $options --user user $box_name"
+  eval "podman create $podman_options --user user $box_name"
 
   write_settings_file "$box_name"
-
-  echo "action_create $box_name"
 }
 
 function entry() {
