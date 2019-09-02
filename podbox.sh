@@ -48,6 +48,13 @@ function write_settings_file() {
   echo '#end' >>"$config_file"
 }
 
+function delete_settings_file() {
+  local box_name="$1"
+  local config_file="$HOME/.config/podbox/$box_name"
+
+  rm -f "$config_file"
+}
+
 function checkNoBoxExsist() {
   local box_name="$1"
   local config_file="$HOME/.config/podbox/$box_name"
@@ -86,9 +93,12 @@ function parse_config_params() {
 }
 
 function gen_podman_options() {
+  local box_name="$1"
+  local container_name="podbox_$box_name"
+
   podman_options=""
-  podman_options+=" --name $1"
-  podman_options+=" --hostname $1"
+  podman_options+=" --name $container_name"
+  podman_options+=" --hostname $box_name"
   podman_options+=" --interactive"
   podman_options+=" --tty"
   podman_options+=" --env LANG=C.UTF-8"
@@ -177,12 +187,29 @@ function action_create() {
   write_settings_file "$box_name"
 }
 
+function action_remove() {
+  local box_name="$1"
+  shift
+
+  if [ "$#" -ne "0" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  delete_settings_file "$box_name"
+
+  local container_name="podbox_$box_name"
+  podman rm "$container_name"
+}
+
 function entry() {
   local action="$1"
   shift
 
   case "$action" in
   "create") action_create "$@" ;;
+  "remove") action_remove "$@" ;;
   *) show_ussage_message ;;
   esac
 }
