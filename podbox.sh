@@ -267,6 +267,25 @@ function action_remove() {
   podman rm "$container_name"
 }
 
+function exec_in_container() {
+  local box_name="$1"
+  local userName="$2"
+  local command="$3"
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+  gen_podman_options "$box_name"
+
+  local container_name="podbox_$box_name"
+
+  set +e
+  eval "podman create $podman_options --user user $container_name" 2> /dev/null
+  set -e
+
+  podman start "$container_name"
+  podman exec --interactive --tty --user "$userName" "$container_name" "${command}"
+}
+
 function action_bash() {
   local box_name="$1"
   shift
@@ -285,18 +304,30 @@ function action_bash() {
     shift
   done
 
-  checkBoxExsist "$box_name"
-  read_settings_file "$box_name"
-  gen_podman_options "$box_name"
+  exec_in_container "$box_name" "$userName" "/bin/bash"
+}
 
-  local container_name="podbox_$box_name"
+function action_exec() {
+  local box_name="$1"
+  shift
+  local command="$1"
+  shift
 
-  set +e
-  eval "podman create $podman_options --user user $container_name" 2> /dev/null
-  set -e
+  local userName="user"
 
-  podman start "$container_name"
-  podman exec --interactive --tty --user $userName "$container_name" /bin/bash
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--root")
+        userName="root";;
+      *)
+        echo "Error: unknown flag: $1"
+        show_ussage_message
+        exit 1;;
+    esac
+    shift
+  done
+
+  exec_in_container "$box_name" "$userName" "${command}"
 }
 
 function action_volume_add() {
@@ -559,6 +590,7 @@ function entry() {
   case "$action" in
     "create") action_create "$@" ;;
     "bash") action_bash "$@" ;;
+    "exec") action_exec "$@" ;;
     "remove") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     "read-only") action_read_only "$@" ;;
