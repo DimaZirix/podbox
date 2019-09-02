@@ -3,7 +3,31 @@
 set -e
 
 function show_ussage_message() {
-  echo "error"
+  echo "Usage: "
+  echo "  podbox command"
+  echo "Available Commands:"
+  echo "  create Name [OPTIONS]                   Create new container"
+  echo "    Available Options:"
+	echo "      --gui                                 Add X11 permission to run programs with gui"
+	echo "      --ipc                                 Add ipc permission. Should be used with gui option"
+	echo "      --audio                               Add PulseAudio permission to play audio"
+	echo "      --net                                 Add network permission"
+	echo "      --security on|off|unconfined          Enable/Disable SELinux permissions for container"
+	echo "      --map-user                            Map host user to guest user"
+	echo "      --volume /host/path[:/cont/path]      Mount path to container"
+	echo "  remove Name                             Remove container"
+	echo "  volume add Name /host/path [OPTIONS]    Add volume to container"
+  echo "    Available Options:"
+	echo "      --to [/container/path]                Set container path"
+	echo "      --type ro|rsync                       Moutn type"
+	echo "  volume rm Name /host/path               Remove volume from container"
+	echo "  read-only on|off Name                   Set container as real-only. All data will be lost after stop"
+	echo "  net on|off Name                         Add/Remove network permission"
+	echo "  ipc on|off Name                         Add/Remove ipc permission. Should be used with gui option"
+	echo "  audio on|off Name                       Add/Remove PulseAudio permission to play audio"
+	echo "  net on|off Name                         Add/Remove network permission"
+	echo "  security on|off|unconfined Name         Enable/Disable SELinux permissions for container"
+	echo "  map-user on|off Name                    Map/Unmap host user to guest user"
 }
 
 declare -A container_volumes
@@ -502,7 +526,7 @@ function entry() {
 
   case "$action" in
     "create") action_create "$@" ;;
-    "rm") action_remove "$@" ;;
+    "remove") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     "read-only") action_read_only "$@" ;;
     "net") action_net "$@" ;;
