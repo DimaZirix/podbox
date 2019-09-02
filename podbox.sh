@@ -7,7 +7,7 @@ function show_ussage_message() {
 }
 
 container_volumes=()
-container_params=()
+declare -A container_params
 
 function read_settings_file() {
   local box_name="$1"
@@ -22,9 +22,10 @@ function read_settings_file() {
     if [[ ${line:0:1} == "#" ]]; then
       parse_block="$line"
     elif [ "$parse_block" = "#volumes" ]; then
-      container_volumes+=("+$line+")
+      container_volumes+=("$line")
     elif [ "$parse_block" = "#params" ]; then
-      container_params+=("+$line+")
+      local kv=(${line//=/ })
+      container_params["${kv[0]}"]=${kv[1]}
     fi
   done
 }
@@ -42,8 +43,8 @@ function write_settings_file() {
   echo '#end' >>"$config_file"
 
   echo '#params' >>"$config_file"
-  for param in "${container_params[@]}"; do
-    echo "$param" >>"$config_file"
+  for key in "${!container_params[@]}"; do
+    echo "${key}=${container_params[$key]}" >>"$config_file"
   done
   echo '#end' >>"$config_file"
 }
@@ -51,11 +52,11 @@ function write_settings_file() {
 function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
-      "--X11"|"--x11") isX11=true;;
-      "--audio") isAudio=true;;
-      "--ipc") isIpc=true;;
-      "--user-mapping") isUserMapping=true;;
-      "--network") isNetwork=true;;
+      "--gui"|"--x11"|"--X11") container_params["gui"]="on";;
+      "--audio") container_params["audio"]="on";;
+      "--ipc") container_params["ipc"]="on";;
+      "--map-user") container_params["map-user"]="on";;
+      "--net") container_params["net"]="on";;
       "--volume")
         container_volumes+=("$2")
         shift;;
