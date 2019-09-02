@@ -242,10 +242,10 @@ function override_container_params() {
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
+  podman commit "$container_name" "$container_name" 2> /dev/null
+  podman rm "$container_name" 2> /dev/null
   set -e
 
-  podman commit "$container_name" "$container_name"
-  podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
 }
 
