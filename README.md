@@ -7,8 +7,11 @@
 ```
 $ podbox.sh create torbrowser --gui --net --ipc
 $ podbox.sh exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 -y
+$ podbox.sh exec torbrowser torbrowser-launcher
 $ exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/start-tor-browser /usr/bin/torbrowser
 $ podbox.sh read-only on torbrowser
+
+Now you can run browser:
 $ podbox.sh exec torbrowser torbrowser
 
 ```
