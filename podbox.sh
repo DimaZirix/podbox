@@ -48,6 +48,17 @@ function write_settings_file() {
   echo '#end' >>"$config_file"
 }
 
+function checkNoBoxExsist() {
+  local box_name="$1"
+  local config_file="$HOME/.config/podbox/$box_name"
+
+  if [ -f "$config_file" ]; then
+    echo "Error: box with name $box_name exsist"
+    show_ussage_message
+    exit 1
+  fi
+}
+
 function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -137,7 +148,7 @@ function gen_podman_options() {
 }
 
 function action_create() {
-  local box_name="box_$1"
+  local box_name="$1"
   shift
 
   parse_config_params "$@"
@@ -149,16 +160,19 @@ function action_create() {
     exit 1
   fi
 
+  checkNoBoxExsist "$box_name"
+
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
 
-  podman create --interactive --tty --name "$box_name" --user root registry.fedoraproject.org/fedora:30
-  podman start "$box_name"
-  podman exec --user root "$box_name" useradd --uid "$user_id" user
-  podman stop "$box_name"
-  podman commit "$box_name" "$box_name"
-  podman rm "$box_name"
-  eval "podman create $podman_options --user user $box_name"
+  local container_name="podbox_$box_name"
+  podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:30
+  podman start "$container_name"
+  podman exec --user root "$container_name" useradd --uid "$user_id" user
+  podman stop "$container_name"
+  podman commit "$container_name" "$container_name"
+  podman rm "$container_name"
+  eval "podman create $podman_options --user user $container_name"
 
   write_settings_file "$box_name"
 }
