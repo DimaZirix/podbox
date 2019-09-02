@@ -66,6 +66,17 @@ function checkNoBoxExsist() {
   fi
 }
 
+function checkBoxExsist() {
+  local box_name="$1"
+  local config_file="$HOME/.config/podbox/$box_name"
+
+  if [ ! -f "$config_file" ]; then
+    echo "Error: box with name $box_name not found"
+    show_ussage_message
+    exit 1
+  fi
+}
+
 function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -187,6 +198,8 @@ function action_create() {
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
+  podman start "$container_name"
+  podman stop "$container_name"
 
   write_settings_file "$box_name"
 }
@@ -205,6 +218,17 @@ function action_remove() {
 
   local container_name="podbox_$box_name"
   podman rm "$container_name"
+}
+
+function override_container_params() {
+  local box_name="$1"
+
+  local container_name="podbox_$box_name"
+  gen_podman_options "$box_name"
+  podman stop "$container_name"
+  podman commit "$container_name" "$container_name"
+  podman rm "$container_name"
+  eval "podman create $podman_options --user user $container_name"
 }
 
 function action_volume_add() {
@@ -233,9 +257,12 @@ function action_volume_add() {
 
   local mount_value="$host_path:$container_point$mount_type"
 
+  checkBoxExsist "$box_name"
   read_settings_file "$box_name"
 
   container_volumes["${mount_value}"]="${mount_value}"
+
+  override_container_params "$box_name"
 
   write_settings_file "$box_name"
 }
