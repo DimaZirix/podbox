@@ -15,6 +15,8 @@ function show_ussage_message() {
 	echo "      --security on|off|unconfined          Enable/Disable SELinux permissions for container"
 	echo "      --map-user                            Map host user to guest user"
 	echo "      --volume /host/path[:/cont/path]      Mount path to container"
+	echo "  bash Name [--root]                      Run shell inside container"
+	echo "  exec Name command                       Run command inside container"
 	echo "  remove Name                             Remove container"
 	echo "  volume add Name /host/path [OPTIONS]    Add volume to container"
   echo "    Available Options:"
@@ -263,6 +265,38 @@ function action_remove() {
 
   local container_name="podbox_$box_name"
   podman rm "$container_name"
+}
+
+function action_bash() {
+  local box_name="$1"
+  shift
+
+  local userName="user"
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--root")
+        userName="root";;
+      *)
+        echo "Error: unknown flag: $1"
+        show_ussage_message
+        exit 1;;
+    esac
+    shift
+  done
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+  gen_podman_options "$box_name"
+
+  local container_name="podbox_$box_name"
+
+  set +e
+  eval "podman create $podman_options --user user $container_name" 2> /dev/null
+  set -e
+
+  podman start "$container_name"
+  podman exec --interactive --tty --user $userName "$container_name" /bin/bash
 }
 
 function action_volume_add() {
@@ -524,6 +558,7 @@ function entry() {
 
   case "$action" in
     "create") action_create "$@" ;;
+    "bash") action_bash "$@" ;;
     "remove") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     "read-only") action_read_only "$@" ;;
