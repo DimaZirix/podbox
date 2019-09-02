@@ -3,7 +3,9 @@
 container_volumes=()
 
 function read_settings_file() {
-  echo "ok"
+  local box_name="$1"
+
+  echo "read_settings $box_name"
 }
 
 function show_ussage_message() {
@@ -19,12 +21,12 @@ function action_create() {
   shift
   parse_container_params "$@"
 
-  echo "$box_name"
+  read_settings_file "$box_name"
+
+  echo "action_create $box_name"
 }
 
 function entry() {
-  read_settings_file
-
   local action="$1"
   shift
 
