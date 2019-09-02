@@ -4,19 +4,19 @@ set -e
 
 function show_ussage_message() {
   echo "Usage: podbox.sh command"
-  echo "  container create containerName [OPTIONS]    Create container"
+  echo "  create containerName [OPTIONS]    Create container"
   echo "    Options:"
 	echo "      --map-user                              Map host user to user with same uid inside the container"
 	echo "      --audio                                 Expose pulseaudio sound server inside the container"
 	echo "      --x11                                   Expose X11 socket inside the container"
 	echo "      --volume path[:mount[:ro|rslave]]       Bind mount a volume into the container"
 	echo "      --ipc                                   IPC namespace to use"
-  echo "  container delete containerName             Delete container"
-  echo "  container bash containerName [OPTIONS]     Enter container bash"
+  echo "  delete containerName             Delete container"
+  echo "  bash containerName [OPTIONS]     Enter container bash"
   echo "    Options:"
 	echo "      --root                                  Execute as root"
-  echo "  container exec containerName command       Run command inside container"
-  echo "  sandbox create containerName sandboxName   Create immutable sandbox from sandbox"
+  echo "  exec containerName command       Run command inside container"
+  echo "  sandbox create containerName sandboxName   Create immutable container from sandboxName"
   echo "  sandbox bash sandboxName [OPTIONS]         Enter sandbox bash"
   echo "    Options:"
 	echo "      --map-user                              Map host user to user with same uid inside the container"
@@ -41,6 +41,7 @@ function container_create() {
   local isAudio=false;
   local isIpc=false;
   local isUserMapping=false;
+  local isNetwork=false;
   local volumes=""
   local params=()
 
@@ -50,6 +51,7 @@ function container_create() {
       "--audio") isAudio=true;;
       "--ipc") isIpc=true;;
       "--user-mapping") isUserMapping=true;;
+      "--network") isNetwork=true;;
       "--volume")
         volumes+=" --volume $2"
         shift;;
@@ -72,14 +74,68 @@ function container_create() {
   fi
 
   local name="$1"; shift;
-  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
-
-  eval "podman create $options --user root registry.fedoraproject.org/fedora:30"
-  podman start "$name"
-
+  local temp_name="$name"_temp
   local user_id=$(id -ru)
-  podman exec --user root "$name" useradd --uid "$user_id" user
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$isNetwork" "$volumes")
+
+  podman create --interactive --tty --name "$temp_name" --user root registry.fedoraproject.org/fedora:30
+  podman start "$temp_name"
+  podman exec --user root "$temp_name" useradd --uid "$user_id" user
+  podman stop "$temp_name"
+  podman commit "$temp_name" "$name"
+  podman rm "$temp_name"
+
+  eval "podman create $options --user user $name"
 }
+
+function container_override() {
+  local isX11=false;
+  local isAudio=false;
+  local isIpc=false;
+  local isUserMapping=false;
+  local isNetwork=false;
+  local volumes=""
+  local params=()
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--X11") isX11=true;;
+      "--audio") isAudio=true;;
+      "--ipc") isIpc=true;;
+      "--user-mapping") isUserMapping=true;;
+      "--network") isNetwork=true;;
+      "--volume")
+        volumes+=" --volume $2"
+        shift;;
+      -*)
+        echo "Error: unknown flag: $1"
+        echo ""
+        show_ussage_message
+        exit 1;;
+      *)params+=("$1");;
+    esac
+    shift
+  done
+  set -- "${params[@]}"
+
+  if [ "$#" -lt "1" ]; then
+    echo "Error: Illegal count of arguments"
+    echo ""
+    show_ussage_message
+    exit 1
+  fi
+
+  local name="$1"; shift;
+  local temp_name="$name"_temp
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$isNetwork" "$volumes")
+
+  eval "podman stop $name --timeout 1 2> /dev/null"
+  podman commit "$name" "$name"
+  podman rm "$name"
+
+  eval "podman create $options --user root $name"
+}
+
 
 function container_delete() {
   if [ "$#" -ne "1" ]; then
@@ -92,13 +148,15 @@ function container_delete() {
   set +e
 
   local name="$1"
+  local temp_name="$name"_temp
   eval "podman stop $name --timeout 1 2> /dev/null"
   eval "podman rm $name"
+  eval "podman rm $temp_name"
+  eval "podman rmi $name"
 }
 
 function container_bash() {
   local userName="user";
-
   local params=()
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -127,17 +185,40 @@ function container_bash() {
 }
 
 function container_exec() {
-  if [ "$#" -ne "2" ]; then
+  local userName="user";
+  local params=()
+  local isCommand=false
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--root") userName="root";;
+      --)isCommand=true;;
+      -*)
+        if [ "$isCommand" = false ]; then
+          echo "Error: unknown flag: $1"
+          echo ""
+          show_ussage_message
+          exit 1
+	fi
+        if [ "$isCommand" = true ]; then
+          params+=("$1")
+        fi;;
+      *)params+=("$1");;
+    esac
+    shift
+  done
+  set -- "${params[@]}"
+
+  if [ "$#" -lt "2" ]; then
     echo "Error: Illegal count of arguments"
     echo ""
     show_ussage_message
     exit 1
   fi
 
-  local name="$1"
-  local command="$2"
+  local name="$1"; shift;
+  local command="$@"
   podman start "$name"
-  podman exec --interactive --tty --user user "$name" "$command"
+  eval "podman exec --interactive --tty --user $userName $name sh -c \"$command\""
 }
 
 function get_options() {
@@ -146,8 +227,9 @@ function get_options() {
   local isAudio="$3";
   local isIpc="$4";
   local isUserMapping="$5";
+  local isNetwork="$6";
   local isDisableSecurity=false
-  local volumes="$6"
+  local volumes="$7"
 
   local options=""
   options+=" --name $name"
@@ -156,6 +238,13 @@ function get_options() {
   options+=" --tty"
   options+=" --env LANG=C.UTF-8"
   options+=" --env TERM=${TERM}"
+
+  if [ "$isNetwork" = false ]; then
+    options+="  --network none"
+  fi
+  if [ "$isNetwork" = true ]; then
+    options+="  --network slirp4netns"
+  fi
 
   if [ "$isIpc" = true ]; then
     options+=" --ipc host"
@@ -194,6 +283,7 @@ function get_options() {
 
   if [ "$isDisableSecurity" = true ]; then
     options+=" --security-opt label=disable"
+    options+=" --security-opt seccomp=unconfined"
   fi
 
   echo "${options[@]}" "${volumes[@]}"
@@ -213,13 +303,14 @@ function sandbox_create() {
 }
 
 function sandbox_bash() {
+  local userName="user";
   local isX11=false;
   local isAudio=false;
   local isIpc=false;
   local isUserMapping=false;
+  local isNetwork=false;
   local volumes=""
   local params=()
-  local userName="user"
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -228,6 +319,7 @@ function sandbox_bash() {
       "--audio") isAudio=true;;
       "--ipc") isIpc=true;;
       "--user-mapping") isUserMapping=true;;
+      "--network") isNetwork=true;;
       "--volume")
         volumes+=" --volume $2"
         shift;;
@@ -250,19 +342,21 @@ function sandbox_bash() {
   fi
 
   local name="sandbox_$1";
-  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$isNetwork" "$volumes")
 
+echo "podman run $options --rm --user $userName localhost/$name /bin/bash"
   eval "podman run $options --rm --user $userName localhost/$name /bin/bash"
 }
 
 function sandbox_exec() {
+  local userName="user";
   local isX11=false;
   local isAudio=false;
   local isIpc=false;
   local isUserMapping=false;
+  local isNetwork=false;
   local volumes=""
   local params=()
-  local userName="user"
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -271,6 +365,7 @@ function sandbox_exec() {
       "--audio") isAudio=true;;
       "--ipc") isIpc=true;;
       "--user-mapping") isUserMapping=true;;
+      "--network") isNetwork=true;;
       "--volume")
         volumes+=" --volume $2"
         shift;;
@@ -294,7 +389,7 @@ function sandbox_exec() {
 
   local name="sandbox_$1";
   local command="$2";
-  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$volumes")
+  local options=$(get_options "$name" "$isX11" "$isAudio" "$isIpc" "$isUserMapping" "$isNetwork" "$volumes")
 
   eval "podman run $options --rm --user $userName localhost/$name $command"
 }
@@ -324,6 +419,7 @@ function start() {
 
   case "$command" in
     "container create") container_create "$@";;
+    "container override") container_override "$@";;
     "container delete") container_delete "$@";;
     "container bash") container_bash "$@";;
     "container exec") container_exec "$@";;
