@@ -48,7 +48,7 @@ function write_settings_file() {
   echo '#end' >>"$config_file"
 }
 
-function parse_container_params() {
+function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       "--X11"|"--x11") isX11=true;;
@@ -75,7 +75,7 @@ function action_create() {
   local box_name="$1"
   shift
 
-  parse_container_params "$@"
+  parse_config_params "$@"
   set -- "$parse_params"
 
   if [ "$#" -ne "1" ]; then
