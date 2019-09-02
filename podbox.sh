@@ -264,7 +264,11 @@ function action_remove() {
   delete_settings_file "$box_name"
 
   local container_name="podbox_$box_name"
-  podman rm "$container_name"
+
+  set +e
+  podman stop --timeout 2 "$container_name" 2> /dev/null
+  podman rm "$container_name" 2> /dev/null
+  set -e
 }
 
 function exec_in_container() {
