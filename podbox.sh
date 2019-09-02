@@ -137,7 +137,7 @@ function gen_podman_options() {
 }
 
 function action_create() {
-  local box_name="$1"
+  local box_name="box_$1"
   shift
 
   parse_config_params "$@"
@@ -157,6 +157,7 @@ function action_create() {
   podman exec --user root "$box_name" useradd --uid "$user_id" user
   podman stop "$box_name"
   podman commit "$box_name" "$box_name"
+  podman rm "$box_name"
   eval "podman create $podman_options --user user $box_name"
 
   write_settings_file "$box_name"
