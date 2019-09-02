@@ -269,8 +269,11 @@ function action_remove() {
 
 function exec_in_container() {
   local box_name="$1"
-  local userName="$2"
-  local command="$3"
+  shift
+  local userName="$1"
+  shift
+  local command="$1"
+  shift
 
   checkBoxExsist "$box_name"
   read_settings_file "$box_name"
@@ -283,7 +286,7 @@ function exec_in_container() {
   set -e
 
   podman start "$container_name"
-  podman exec --interactive --tty --user "$userName" "$container_name" "${command}"
+  podman exec --interactive --tty --user "$userName" "$container_name" "$command" "$@"
 }
 
 function action_bash() {
@@ -310,24 +313,14 @@ function action_bash() {
 function action_exec() {
   local box_name="$1"
   shift
-  local command="$1"
-  shift
 
   local userName="user"
+  if [ "$1" = "--root" ]; then
+    userName="root"
+    shift;
+  fi
 
-  while [[ "$#" -gt 0 ]]; do
-    case "$1" in
-      "--root")
-        userName="root";;
-      *)
-        echo "Error: unknown flag: $1"
-        show_ussage_message
-        exit 1;;
-    esac
-    shift
-  done
-
-  exec_in_container "$box_name" "$userName" "${command}"
+  exec_in_container "$box_name" "$userName" "$@"
 }
 
 function action_volume_add() {
