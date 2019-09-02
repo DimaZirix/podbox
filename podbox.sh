@@ -236,6 +236,21 @@ function action_create() {
   write_settings_file "$box_name"
 }
 
+function override_container_params() {
+  local box_name="$1"
+
+  local container_name="podbox_$box_name"
+  gen_podman_options "$box_name"
+
+  set +e
+  podman stop --timeout 2 "$container_name" 2> /dev/null
+  set -e
+
+  podman commit "$container_name" "$container_name"
+  podman rm "$container_name"
+  eval "podman create $podman_options --user user $container_name"
+}
+
 function action_remove() {
   local box_name="$1"
   shift
@@ -250,21 +265,6 @@ function action_remove() {
 
   local container_name="podbox_$box_name"
   podman rm "$container_name"
-}
-
-function override_container_params() {
-  local box_name="$1"
-
-  local container_name="podbox_$box_name"
-  gen_podman_options "$box_name"
-
-  set +e
-  podman stop --timeout 2 "$container_name" 2> /dev/null
-  set -e
-
-  podman commit "$container_name" "$container_name"
-  podman rm "$container_name"
-  eval "podman create $podman_options --user user $container_name"
 }
 
 function action_volume_add() {
