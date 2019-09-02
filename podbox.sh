@@ -334,6 +334,32 @@ function action_read_only() {
   write_settings_file "$box_name"
 }
 
+function action_net() {
+  local box_name="$2"
+  local value="$1"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+
+  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
+    container_params["net"]="$value"
+  else
+    echo "Error: Illegal value $value"
+    show_ussage_message
+    exit 1
+  fi
+
+  override_container_params "$box_name"
+
+  write_settings_file "$box_name"
+}
+
 function entry() {
   local action="$1"
   shift
@@ -343,6 +369,7 @@ function entry() {
     "rm") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     "read-only") action_read_only "$@" ;;
+    "net") action_net "$@" ;;
     *) show_ussage_message ;;
   esac
 }
