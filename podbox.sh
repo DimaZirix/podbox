@@ -115,6 +115,10 @@ function gen_podman_options() {
   podman_options+=" --env LANG=C.UTF-8"
   podman_options+=" --env TERM=${TERM}"
 
+  if [ "${container_params["read-only"]}" = "on" ]; then
+    podman_options+=" --rm"
+  fi
+
   if [ "${container_params["net"]}" = "on" ]; then
     podman_options+=" --network slirp4netns"
   else
@@ -304,6 +308,32 @@ function action_volume() {
   esac
 }
 
+function action_read_only() {
+  local box_name="$1"
+  local value="$2"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+
+  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
+    container_params["read-only"]="$value"
+  else
+    echo "Error: Illegal value $value"
+    show_ussage_message
+    exit 1
+  fi
+
+  override_container_params "$box_name"
+
+  write_settings_file "$box_name"
+}
+
 function entry() {
   local action="$1"
   shift
@@ -312,6 +342,7 @@ function entry() {
     "create") action_create "$@" ;;
     "rm") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
+    "read-only") action_read_only "$@" ;;
     *) show_ussage_message ;;
   esac
 }
