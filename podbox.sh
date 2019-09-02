@@ -6,7 +6,7 @@ function show_ussage_message() {
   echo "error"
 }
 
-container_volumes=()
+declare -A container_volumes
 declare -A container_params
 
 function read_settings_file() {
@@ -22,7 +22,7 @@ function read_settings_file() {
     if [[ ${line:0:1} == "#" ]]; then
       parse_block="$line"
     elif [ "$parse_block" = "#volumes" ]; then
-      container_volumes+=("$line")
+      container_volumes["${line}"]="${line}"
     elif [ "$parse_block" = "#params" ]; then
       local kv=(${line//=/ })
       container_params["${kv[0]}"]=${kv[1]}
@@ -78,7 +78,7 @@ function parse_config_params() {
         container_params["security"]="$2"
         shift;;
       "--volume")
-        container_volumes+=("$2")
+        container_volumes["$2"]=("$2")
         shift;;
       -*)
         echo "Error: unknown flag: $1"
@@ -235,7 +235,7 @@ function action_volume_add() {
 
   read_settings_file "$box_name"
 
-  container_volumes+=("${mount_value}")
+  container_volumes["${mount_value}"]="${mount_value}"
 
   write_settings_file "$box_name"
 }
