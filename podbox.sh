@@ -86,7 +86,13 @@ function parse_config_params() {
       "--map-user") container_params["map-user"]="on";;
       "--net") container_params["net"]="on";;
       "--security")
-        container_params["security"]="$2"
+        if [ "$2" = "on" ] || [ "$2" = "off" ] || [ "$2" = "unconfined" ]; then
+          container_params["security"]="$2"
+        else
+          echo "Error: Illegal value $2"
+          show_ussage_message
+          exit 1
+        fi
         shift;;
       "--volume")
         container_volumes["$2"]=("$2")
@@ -464,6 +470,32 @@ function action_map_user() {
   write_settings_file "$box_name"
 }
 
+function action_security() {
+  local box_name="$2"
+  local value="$1"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+
+  if [ "$value" = "on" ] || [ "$value" = "off" ] || [ "$value" = "unconfined" ]; then
+    container_params["security"]="$value"
+  else
+    echo "Error: Illegal value $value"
+    show_ussage_message
+    exit 1
+  fi
+
+  override_container_params "$box_name"
+
+  write_settings_file "$box_name"
+}
+
 function entry() {
   local action="$1"
   shift
@@ -478,6 +510,7 @@ function entry() {
     "gui") action_gui "$@" ;;
     "audio") action_audio "$@" ;;
     "map-user") action_map_user "$@" ;;
+    "security") action_security "$@" ;;
     *) show_ussage_message ;;
   esac
 }
