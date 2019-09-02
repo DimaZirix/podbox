@@ -229,7 +229,7 @@ function override_container_params() {
   gen_podman_options "$box_name"
 
   set +e
-  podman stop --timeout 2 "$container_name"
+  podman stop --timeout 2 "$container_name" 2> /dev/null
   set -e
 
   podman commit "$container_name" "$container_name"
@@ -309,8 +309,8 @@ function action_volume() {
 }
 
 function action_read_only() {
-  local box_name="$1"
-  local value="$2"
+  local box_name="$2"
+  local value="$1"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
