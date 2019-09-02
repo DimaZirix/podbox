@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -e
+
+function show_ussage_message() {
+  echo "error"
+}
+
 container_volumes=()
 container_params=()
 
@@ -23,9 +29,6 @@ function read_settings_file() {
   done
 }
 
-function show_ussage_message() {
-  echo "error"
-}
 
 function parse_container_params() {
   echo "$@"
