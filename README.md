@@ -1,6 +1,6 @@
 # Podman sandbox for GUI applications 
 
-#### Example
+#### Examples
 
 #### Tor browser inside podman container
 
