@@ -1,11 +1,30 @@
 #!/bin/bash
 
 container_volumes=()
+container_params=()
 
 function read_settings_file() {
   local box_name="$1"
+  local config_file="/home/user/podbox/test.txt" #"$HOME/.config/podbox/$box_name"
+  mkdir -p "$(dirname "$config_file")"
 
-  echo "read_settings $box_name"
+  local line_list=()
+  readarray -d $'\n' -t line_list < "$config_file"
+
+  local parse_block=""
+  for line in "${line_list[@]}"; do
+    if [[ ${line:0:1} == "#" ]]; then
+      parse_block="$line"
+    elif [ "$parse_block" = "#volumes" ]; then
+      container_volumes+=("+$line+")
+    elif [ "$parse_block" = "#params" ]; then
+      container_params+=("+$line+")
+    fi
+  done
+
+  unset IFS;
+
+  echo "read_settings $box_name " "${line_list[@]}" "${container_volumes[@]}" pars "${container_params[@]}"
 }
 
 function show_ussage_message() {
@@ -31,8 +50,8 @@ function entry() {
   shift
 
   case "$action" in
-    "create") action_create "$@";;
-    *) show_ussage_message ;;
+  "create") action_create "$@" ;;
+  *) show_ussage_message ;;
   esac
 }
 
