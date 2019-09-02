@@ -5,7 +5,7 @@ container_params=()
 
 function read_settings_file() {
   local box_name="$1"
-  local config_file="/home/user/podbox/test.txt" #"$HOME/.config/podbox/$box_name"
+  local config_file="$HOME/.config/podbox/$box_name"
   mkdir -p "$(dirname "$config_file")"
 
   local line_list=()
@@ -21,10 +21,6 @@ function read_settings_file() {
       container_params+=("+$line+")
     fi
   done
-
-  unset IFS;
-
-  echo "read_settings $box_name " "${line_list[@]}" "${container_volumes[@]}" pars "${container_params[@]}"
 }
 
 function show_ussage_message() {
