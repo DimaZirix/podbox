@@ -198,8 +198,6 @@ function action_create() {
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
-  podman start "$container_name"
-  podman stop "$container_name"
 
   write_settings_file "$box_name"
 }
@@ -225,7 +223,11 @@ function override_container_params() {
 
   local container_name="podbox_$box_name"
   gen_podman_options "$box_name"
-  podman stop "$container_name"
+
+  set +e
+  podman stop --timeout 2 "$container_name"
+  set -e
+
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
@@ -267,12 +269,37 @@ function action_volume_add() {
   write_settings_file "$box_name"
 }
 
+function action_volume_remove() {
+  local box_name="$1"
+  local host_path="$2"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  checkBoxExsist "$box_name"
+  read_settings_file "$box_name"
+
+  for volume in "${container_volumes[@]}"; do
+    if [[ $volume == "${host_path}:"* ]]; then
+      unset container_volumes["${volume}"]
+    fi
+  done
+
+  override_container_params "$box_name"
+
+  write_settings_file "$box_name"
+}
+
 function action_volume() {
   local action="$1"
   shift
 
   case "$action" in
     "add") action_volume_add "$@" ;;
+    "rm") action_volume_remove "$@" ;;
     *) show_ussage_message ;;
   esac
 }
@@ -283,7 +310,7 @@ function entry() {
 
   case "$action" in
     "create") action_create "$@" ;;
-    "remove") action_remove "$@" ;;
+    "rm") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     *) show_ussage_message ;;
   esac
