@@ -85,7 +85,6 @@ function checkNoBoxExsist() {
 
   if [ -f "$config_file" ]; then
     echo "Error: box with name $box_name exsist"
-    show_ussage_message
     exit 1
   fi
 }
@@ -96,7 +95,6 @@ function checkBoxExsist() {
 
   if [ ! -f "$config_file" ]; then
     echo "Error: box with name $box_name not found"
-    show_ussage_message
     exit 1
   fi
 }
