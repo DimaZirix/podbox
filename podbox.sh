@@ -2,6 +2,8 @@
 
 set -e
 
+container_prefix=""
+
 function show_ussage_message() {
   echo "Usage: "
   echo "  podbox command"
@@ -135,7 +137,7 @@ function parse_config_params() {
 
 function gen_podman_options() {
   local box_name="$1"
-  local container_name="podbox_$box_name"
+  local container_name="$container_prefix$box_name"
 
   podman_options=""
   podman_options+=" --name $container_name"
@@ -224,7 +226,7 @@ function action_create() {
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
 
-  local container_name="podbox_$box_name"
+  local container_name="$container_prefix$box_name"
   podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:30
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
@@ -239,7 +241,7 @@ function action_create() {
 function override_container_params() {
   local box_name="$1"
 
-  local container_name="podbox_$box_name"
+  local container_name="$container_prefix$box_name"
   gen_podman_options "$box_name"
 
   set +e
@@ -263,7 +265,7 @@ function action_remove() {
 
   delete_settings_file "$box_name"
 
-  local container_name="podbox_$box_name"
+  local container_name="$container_prefix$box_name"
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
@@ -283,7 +285,7 @@ function exec_in_container() {
   read_settings_file "$box_name"
   gen_podman_options "$box_name"
 
-  local container_name="podbox_$box_name"
+  local container_name="$container_prefix$box_name"
 
   set +e
   eval "podman create $podman_options --user user $container_name" 2> /dev/null
