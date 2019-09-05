@@ -83,7 +83,7 @@ function write_settings_file() {
   done
   echo '#end' >>"$config_file"
 
-  echo '#desktop' >"$config_file"
+  echo '#desktop' >>"$config_file"
   for entry in "${container_desktop_entries[@]}"; do
     echo "$entry" >>"$config_file"
   done
