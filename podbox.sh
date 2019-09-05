@@ -582,12 +582,73 @@ function action_security() {
   write_settings_file "$box_name"
 }
 
+function action_desktop_add() {
+  local box_name="$1"; shift
+  local bin_name="$1"; shift
+  local icon_title="$1"; shift
+
+  local categories="Utility"
+  local icon_file=""
+  local isContainerIcon=false
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "-li")
+        icon_title="$2"
+        shift;;
+      "-ci")
+        isContainerIcon=true
+        icon_title="$2"
+        shift;;
+      "-cat")
+        categories="$2"
+        shift;;
+      *)
+        echo "Error: unknown flag: $1"
+        show_ussage_message
+        exit 1;;
+    esac
+    shift
+  done
+
+  if [ isContainerIcon = true ]; then
+    podman cp "$box_name:$icon_file" ~/.icons/
+    icon_file="$HOME/.icons/$(basename $icon_file)"
+  fi
+
+  desktop="[Desktop Entry]
+Version=1.0
+Name=GoLand
+GenericName=GoLand
+Exec=podbox exec $box_name $bin_name
+Icon=$icon_file
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=$categories
+
+X-Desktop-File-Install-Version=0.23"
+
+  rm -f "/home/admin/.local/share/applications/$bin_name.desktop"
+  echo "$desktop" >> "/home/admin/.local/share/applications/$bin_name.desktop"
+}
+
+function action_desktop() {
+  local action="$1"
+  shift
+
+  case "$action" in
+    "add") action_desktop_add "$@" ;;
+    "rm") action_desktop_remove "$@" ;;
+    *) show_ussage_message ;;
+  esac
+}
+
 function entry() {
   if [ "$#" -eq "0" ]; then
     show_ussage_message
     exit 1
   fi
-
 
   local action="$1"
   shift
@@ -605,6 +666,7 @@ function entry() {
     "audio") action_audio "$@" ;;
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
+    "desktop") action_desktop "$@" ;;
     *) show_ussage_message ;;
   esac
 }
