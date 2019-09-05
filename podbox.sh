@@ -629,8 +629,21 @@ Categories=$categories
 
 X-Desktop-File-Install-Version=0.23"
 
-  rm -f "/home/admin/.local/share/applications/$bin_name.desktop"
-  echo "$desktop" >> "/home/admin/.local/share/applications/$bin_name.desktop"
+  rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+  echo "$desktop" >> "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+}
+
+function action_desktop_remove() {
+  local box_name="$1"
+  local bin_name="$2"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
 }
 
 function action_desktop() {
