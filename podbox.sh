@@ -104,10 +104,12 @@ function checkIfNoBoxExist() {
 
   set +e
   podman container inspect "$box_name" &> /dev/null
-  local status=$?
+  local status_c=$?
+  podman image exists "$box_name"
+  local status_i=$?
   set -e
 
-  if [ $status -eq 0 ]; then
+  if [ $status_c -eq 0 ] || [ $status_i -eq 0 ]; then
     echo "Error: box with name $box_name exsist"
     exit 1
   fi
@@ -118,10 +120,12 @@ function checkIfBoxExist() {
 
   set +e
   podman container inspect "$box_name" &> /dev/null
-  local status=$?
+  local status_c=$?
+  podman image exists "$box_name"
+  local status_i=$?
   set -e
 
-  if [ $status -ne 0 ]; then
+  if [ $status_c -ne 0 ] && [ $status_i -ne 0 ]; then
     echo "Error: box with name $box_name not found"
     exit 1
   fi
