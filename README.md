@@ -46,7 +46,7 @@ Available Commands:
       --to [/container/path]                Set container path
       --type ro|rsync                       Moutn type
   volume rm Name /host/path               Remove volume from container
-  read-only Name on|off                   Set container as real-only. All data will be lost after stop
+  read-only Name on|off                   Set container as read-only. All data will be lost after stop
   net Name on|off                         Add/Remove network permission
   ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option
   audio Name on|off                       Add/Remove PulseAudio permission to play audio

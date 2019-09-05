@@ -23,7 +23,7 @@ function show_ussage_message() {
 	echo "      --to [/container/path]                Set container path"
 	echo "      --type ro|rsync                       Moutn type"
 	echo "  volume rm Name /host/path               Remove volume from container"
-	echo "  read-only Name on|off                   Set container as real-only. All data will be lost after stop"
+	echo "  read-only Name on|off                   Set container as read-only. All data will be lost after stop"
 	echo "  net Name on|off                         Add/Remove network permission"
 	echo "  ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option"
 	echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
