@@ -101,13 +101,6 @@ function checkIfNoBoxExist() {
     echo "Error: box with name $box_name exsist"
     exit 1
   fi
-
-  #local config_file="$HOME/.config/podbox/$box_name"
-
-  #if [ -f "$config_file" ]; then
-  #  echo "Error: box with name $box_name exsist"
-  #  exit 1
-  #fi
 }
 
 function checkIfBoxExist() {
@@ -122,13 +115,6 @@ function checkIfBoxExist() {
     echo "Error: box with name $box_name not found"
     exit 1
   fi
-
-  #local config_file="$HOME/.config/podbox/$box_name"
-
-  #if [ ! -f "$config_file" ]; then
-  #  echo "Error: box with name $box_name not found"
-  #  exit 1
-  #fi
 }
 
 function parse_config_params() {
