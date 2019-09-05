@@ -32,6 +32,12 @@ function show_ussage_message() {
 	echo "  net on|off Name                         Add/Remove network permission"
 	echo "  security on|off|unconfined Name         Enable/Disable SELinux permissions for container"
 	echo "  map-user on|off Name                    Map/Unmap host user to guest user"
+	echo "  desktop create Name AppCmd AppName      Create desktop entry for container program"
+  echo "    Available Options:"
+	echo "      --icon /path/to/icon                  Set icon for desktop entry"
+	echo "      --cont_icon /path/to/icon             Set icon from container for desktop entry"
+	echo "      --categories /path/to/icon            Set categories for desktop entry"
+	echo "  desktop rm Name AppCmd                  Remove desktop entry"
 }
 
 declare -A container_volumes
@@ -593,14 +599,14 @@ function action_desktop_add() {
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
-      "-li")
-        icon_title="$2"
+      "--icon")
+        icon_file="$2"
         shift;;
-      "-ci")
+      "--cont_icon")
         isContainerIcon=true
-        icon_title="$2"
+        icon_file="$2"
         shift;;
-      "-cat")
+      "--categories")
         categories="$2"
         shift;;
       *)
@@ -611,15 +617,15 @@ function action_desktop_add() {
     shift
   done
 
-  if [ isContainerIcon = true ]; then
+  if [ $isContainerIcon = true ]; then
     podman cp "$box_name:$icon_file" ~/.icons/
-    icon_file="$HOME/.icons/$(basename $icon_file)"
+    icon_file="$HOME/.icons/$(basename "$icon_file")"
   fi
 
   desktop="[Desktop Entry]
 Version=1.0
 Name=GoLand
-GenericName=GoLand
+GenericName=$icon_title
 Exec=podbox exec $box_name $bin_name
 Icon=$icon_file
 Terminal=false
