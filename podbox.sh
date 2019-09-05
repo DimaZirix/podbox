@@ -89,24 +89,46 @@ function delete_settings_file() {
   rm -f "$config_file"
 }
 
-function checkIfNoBoxExsist() {
+function checkIfNoBoxExist() {
   local box_name="$1"
-  local config_file="$HOME/.config/podbox/$box_name"
 
-  if [ -f "$config_file" ]; then
+  set +e
+  podman container inspect blabla
+  local status=$?
+  set -e
+
+  if [ $status -eq 0 ]; then
     echo "Error: box with name $box_name exsist"
     exit 1
   fi
+
+  #local config_file="$HOME/.config/podbox/$box_name"
+
+  #if [ -f "$config_file" ]; then
+  #  echo "Error: box with name $box_name exsist"
+  #  exit 1
+  #fi
 }
 
-function checkIfBoxExsist() {
+function checkIfBoxExist() {
   local box_name="$1"
-  local config_file="$HOME/.config/podbox/$box_name"
 
-  if [ ! -f "$config_file" ]; then
+  set +e
+  podman container inspect blabla
+  local status=$?
+  set -e
+
+  if [ $status -ne 0 ]; then
     echo "Error: box with name $box_name not found"
     exit 1
   fi
+
+  #local config_file="$HOME/.config/podbox/$box_name"
+
+  #if [ ! -f "$config_file" ]; then
+  #  echo "Error: box with name $box_name not found"
+  #  exit 1
+  #fi
 }
 
 function parse_config_params() {
@@ -227,7 +249,7 @@ function action_create() {
     exit 1
   fi
 
-  checkIfNoBoxExsist "$box_name"
+  checkIfNoBoxExist "$box_name"
 
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
@@ -287,7 +309,7 @@ function exec_in_container() {
   local command="$1"
   shift
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
   gen_podman_options "$box_name"
 
@@ -361,7 +383,7 @@ function action_volume_add() {
 
   local mount_value="$host_path:$container_point$mount_type"
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   container_volumes["${mount_value}"]="${mount_value}"
@@ -381,7 +403,7 @@ function action_volume_remove() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   for volume in "${container_volumes[@]}"; do
@@ -418,7 +440,7 @@ function action_read_only() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -444,7 +466,7 @@ function action_net() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -470,7 +492,7 @@ function action_ipc() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -496,7 +518,7 @@ function action_gui() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -522,7 +544,7 @@ function action_audio() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -548,7 +570,7 @@ function action_map_user() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
@@ -574,7 +596,7 @@ function action_security() {
     exit 1
   fi
 
-  checkIfBoxExsist "$box_name"
+  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   if [ "$value" = "on" ] || [ "$value" = "off" ] || [ "$value" = "unconfined" ]; then
