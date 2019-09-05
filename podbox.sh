@@ -285,6 +285,8 @@ function action_remove() {
     exit 1
   fi
 
+  desktop_remove_all "$box_name"
+
   delete_settings_file "$box_name"
 
   local container_name="$container_prefix$box_name"
@@ -673,6 +675,17 @@ function action_desktop_remove() {
   unset container_desktop_entries["$box_name-$bin_name"]
 
   write_settings_file "$box_name"
+}
+
+function desktop_remove_all() {
+  local box_name="$1"
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  for entry in "${container_desktop_entries[@]}"; do
+    rm -f "/home/admin/.local/share/applications/$entry.desktop"
+  done
 }
 
 function action_desktop() {
