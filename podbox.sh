@@ -402,7 +402,9 @@ function action_volume() {
   case "$action" in
     "add") action_volume_add "$@" ;;
     "rm") action_volume_remove "$@" ;;
-    *) show_ussage_message ;;
+    *)
+      echo "Unknown command $action"
+      show_ussage_message ;;
   esac
 }
 
@@ -659,7 +661,9 @@ function action_desktop() {
   case "$action" in
     "create") action_desktop_add "$@" ;;
     "rm") action_desktop_remove "$@" ;;
-    *) show_ussage_message ;;
+    *)
+      echo "Unknown command $action"
+      show_ussage_message ;;
   esac
 }
 
@@ -686,7 +690,9 @@ function entry() {
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
-    *) show_ussage_message ;;
+    *)
+      echo "Unknown command $action"
+      show_ussage_message ;;
   esac
 }
 
