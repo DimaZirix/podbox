@@ -93,7 +93,7 @@ function checkIfNoBoxExist() {
   local box_name="$1"
 
   set +e
-  podman container inspect blabla
+  podman container inspect "$box_name" 2> /dev/null
   local status=$?
   set -e
 
@@ -114,7 +114,7 @@ function checkIfBoxExist() {
   local box_name="$1"
 
   set +e
-  podman container inspect blabla
+  podman container inspect "$box_name" 2> /dev/null
   local status=$?
   set -e
 
