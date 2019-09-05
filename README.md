@@ -1,19 +1,27 @@
 # Podman sandbox for GUI applications 
 
+#### Installing
+
+```shell script
+sudo dnf copr enable zirix/Podbox
+sudo dnf install podbox
+```
+or download and use podbox.sh
+
 #### Examples
 
 #### Tor browser inside podman container
 
 ```
-$ podbox.sh create torbrowser --gui --net --ipc
-$ podbox.sh exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 -y
-$ podbox.sh exec torbrowser torbrowser-launcher
-$ podbox.sh exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/start-tor-browser /usr/bin/torbrowser
-$ podbox.sh read-only torbrowser on
-$ podbox.sh desktop create torbrowser torbrowser 'TorBrowser in PodBox' --icon torbrowser
+podbox create torbrowser --gui --net --ipc
+podbox exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 -y
+podbox exec torbrowser torbrowser-launcher
+podbox exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/start-tor-browser /usr/bin/torbrowser
+podbox read-only torbrowser on
+podbox desktop create torbrowser torbrowser 'TorBrowser in PodBox' --icon torbrowser
 
 Now you can run browser with desktop icon or:
-$ podbox.sh exec torbrowser torbrowser
+podbox exec torbrowser torbrowser
 
 ```
 
