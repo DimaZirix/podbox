@@ -2,8 +2,6 @@
 
 set -e
 
-container_prefix=""
-
 function show_ussage_message() {
   echo "Usage: "
   echo "  podbox command"
@@ -40,8 +38,10 @@ function show_ussage_message() {
 	echo "  desktop rm Name AppCmd                  Remove desktop entry"
 }
 
+container_prefix=""
 declare -A container_volumes
 declare -A container_params
+declare -A container_desktop_entries
 
 function read_settings_file() {
   local box_name="$1"
@@ -60,6 +60,8 @@ function read_settings_file() {
     elif [ "$parse_block" = "#params" ]; then
       local kv=(${line//=/ })
       container_params["${kv[0]}"]=${kv[1]}
+    elif [ "$parse_block" = "#desktop" ]; then
+      container_desktop_entries["${line}"]="${line}"
     fi
   done
 }
@@ -78,6 +80,12 @@ function write_settings_file() {
   echo '#params' >>"$config_file"
   for key in "${!container_params[@]}"; do
     echo "${key}=${container_params[$key]}" >>"$config_file"
+  done
+  echo '#end' >>"$config_file"
+
+  echo '#desktop' >"$config_file"
+  for entry in "${container_desktop_entries[@]}"; do
+    echo "$entry" >>"$config_file"
   done
   echo '#end' >>"$config_file"
 }
@@ -375,7 +383,6 @@ function action_volume_add() {
   container_volumes["${mount_value}"]="${mount_value}"
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -399,7 +406,6 @@ function action_volume_remove() {
   done
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -438,7 +444,6 @@ function action_read_only() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -464,7 +469,6 @@ function action_net() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -490,7 +494,6 @@ function action_ipc() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -516,7 +519,6 @@ function action_gui() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -542,7 +544,6 @@ function action_audio() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -568,7 +569,6 @@ function action_map_user() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -594,7 +594,6 @@ function action_security() {
   fi
 
   override_container_params "$box_name"
-
   write_settings_file "$box_name"
 }
 
@@ -647,6 +646,13 @@ X-Desktop-File-Install-Version=0.23"
 
   rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
   echo "$desktop" >> "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  container_desktop_entries["$box_name-$bin_name"]="$box_name-$bin_name"
+
+  write_settings_file "$box_name"
 }
 
 function action_desktop_remove() {
@@ -660,6 +666,13 @@ function action_desktop_remove() {
   fi
 
   rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  unset container_desktop_entries["$box_name-$bin_name"]
+
+  write_settings_file "$box_name"
 }
 
 function action_desktop() {
