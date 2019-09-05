@@ -25,13 +25,13 @@ function show_ussage_message() {
 	echo "      --to [/container/path]                Set container path"
 	echo "      --type ro|rsync                       Moutn type"
 	echo "  volume rm Name /host/path               Remove volume from container"
-	echo "  read-only on|off Name                   Set container as real-only. All data will be lost after stop"
-	echo "  net on|off Name                         Add/Remove network permission"
-	echo "  ipc on|off Name                         Add/Remove ipc permission. Should be used with gui option"
-	echo "  audio on|off Name                       Add/Remove PulseAudio permission to play audio"
-	echo "  net on|off Name                         Add/Remove network permission"
-	echo "  security on|off|unconfined Name         Enable/Disable SELinux permissions for container"
-	echo "  map-user on|off Name                    Map/Unmap host user to guest user"
+	echo "  read-only Name on|off                   Set container as real-only. All data will be lost after stop"
+	echo "  net Name on|off                         Add/Remove network permission"
+	echo "  ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option"
+	echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
+	echo "  net Name on|off                         Add/Remove network permission"
+	echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for container"
+	echo "  map-user Name on|off                    Map/Unmap host user to guest user"
 	echo "  desktop create Name AppCmd AppName      Create desktop entry for container program"
   echo "    Available Options:"
 	echo "      --icon /path/to/icon                  Set icon for desktop entry"
@@ -407,8 +407,8 @@ function action_volume() {
 }
 
 function action_read_only() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -433,8 +433,8 @@ function action_read_only() {
 }
 
 function action_net() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -459,8 +459,8 @@ function action_net() {
 }
 
 function action_ipc() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -485,8 +485,8 @@ function action_ipc() {
 }
 
 function action_gui() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -511,8 +511,8 @@ function action_gui() {
 }
 
 function action_audio() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -537,8 +537,8 @@ function action_audio() {
 }
 
 function action_map_user() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
@@ -563,8 +563,8 @@ function action_map_user() {
 }
 
 function action_security() {
-  local box_name="$2"
-  local value="$1"
+  local box_name="$1"
+  local value="$2"
 
   if [ "$#" -ne "2" ]; then
     echo "Error: Illegal count of arguments"
