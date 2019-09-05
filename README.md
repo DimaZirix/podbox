@@ -9,9 +9,10 @@ $ podbox.sh create torbrowser --gui --net --ipc
 $ podbox.sh exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 -y
 $ podbox.sh exec torbrowser torbrowser-launcher
 $ podbox.sh exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/start-tor-browser /usr/bin/torbrowser
-$ podbox.sh read-only on torbrowser
+$ podbox.sh read-only torbrowser on
+$ podbox.sh desktop create torbrowser torbrowser 'TorBrowser in PodBox' --icon torbrowser
 
-Now you can run browser:
+Now you can run browser with desktop icon or:
 $ podbox.sh exec torbrowser torbrowser
 
 ```
@@ -37,11 +38,17 @@ Available Commands:
       --to [/container/path]                Set container path
       --type ro|rsync                       Moutn type
   volume rm Name /host/path               Remove volume from container
-  read-only on|off Name                   Set container as real-only. All data will be lost after stop
-  net on|off Name                         Add/Remove network permission
-  ipc on|off Name                         Add/Remove ipc permission. Should be used with gui option
-  audio on|off Name                       Add/Remove PulseAudio permission to play audio
-  net on|off Name                         Add/Remove network permission
-  security on|off|unconfined Name         Enable/Disable SELinux permissions for container
-  map-user on|off Name                    Map/Unmap host user to guest user
+  read-only Name on|off                   Set container as real-only. All data will be lost after stop
+  net Name on|off                         Add/Remove network permission
+  ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option
+  audio Name on|off                       Add/Remove PulseAudio permission to play audio
+  net Name on|off                         Add/Remove network permission
+  security Name on|off|unconfined         Enable/Disable SELinux permissions for container
+  map-user Name on|off                    Map/Unmap host user to guest user
+  desktop create Name AppCmd AppName      Create desktop entry for container program
+    Available Options:
+      --icon /path/to/icon                  Set icon for desktop entry
+      --cont_icon /path/to/icon             Set icon from container for desktop entry
+      --categories /path/to/icon            Set categories for desktop entry
+  desktop rm Name AppCmd                  Remove desktop entry
 ```

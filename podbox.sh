@@ -624,7 +624,7 @@ function action_desktop_add() {
 
   desktop="[Desktop Entry]
 Version=1.0
-Name=GoLand
+Name=$icon_title
 GenericName=$icon_title
 Exec=podbox exec $box_name $bin_name
 Icon=$icon_file
@@ -657,7 +657,7 @@ function action_desktop() {
   shift
 
   case "$action" in
-    "add") action_desktop_add "$@" ;;
+    "create") action_desktop_add "$@" ;;
     "rm") action_desktop_remove "$@" ;;
     *) show_ussage_message ;;
   esac
