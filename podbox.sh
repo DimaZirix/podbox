@@ -49,7 +49,9 @@ function read_settings_file() {
   mkdir -p "$(dirname "$config_file")"
 
   local line_list=()
+  set +e
   readarray -d $'\n' -t line_list < "$config_file"
+  set -e
 
   local parse_block=""
   for line in "${line_list[@]}"; do
