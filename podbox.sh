@@ -300,6 +300,7 @@ function action_remove() {
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
+  podman rmi "$container_name" 2> /dev/null
   set -e
 }
 
