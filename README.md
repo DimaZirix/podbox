@@ -13,8 +13,8 @@ or download and use podbox.sh
 #### Tor browser inside podman container
 
 ```shell script
-podbox create torbrowser --gui --net --ipc
-podbox exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 -y
+podbox create torbrowser --gui --net --ipc --audio
+podbox exec torbrowser --root dnf install torbrowser-launcher libXt dbus-glib gtk3 pulseaudio-libs -y
 podbox exec torbrowser torbrowser-launcher
 podbox exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/start-tor-browser /usr/bin/torbrowser
 podbox read-only torbrowser on
