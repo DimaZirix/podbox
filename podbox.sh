@@ -42,7 +42,6 @@ container_prefix=""
 declare -A container_volumes
 declare -A container_params
 declare -A container_desktop_entries
-container_entry_point=""
 
 function read_settings_file() {
   local box_name="$1"
@@ -65,8 +64,6 @@ function read_settings_file() {
       container_params["${kv[0]}"]=${kv[1]}
     elif [ "$parse_block" = "#desktop" ]; then
       container_desktop_entries["${line}"]="${line}"
-    elif [ "$parse_block" = "#entry" ]; then
-      container_entry_point="${line}"
     fi
   done
 }
@@ -92,10 +89,6 @@ function write_settings_file() {
   for entry in "${container_desktop_entries[@]}"; do
     echo "$entry" >>"$config_file"
   done
-  echo '#end' >>"$config_file"
-
-  echo '#entry' >>"$config_file"
-  echo "$container_entry_point" >>"$config_file"
   echo '#end' >>"$config_file"
 }
 
@@ -367,22 +360,6 @@ function action_exec() {
   exec_in_container "$box_name" "$userName" "$@"
 }
 
-function action_run() {
-  local box_name="$1"
-
-  if [ "$#" -ne "1" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
-    exit 1
-  fi
-
-  read_settings_file "$box_name"
-  echo "$container_entry_point"
-
-  exec_in_container "$box_name" "user" "$container_entry_point"
-  podman stop "$box_name"
-}
-
 function action_volume_add() {
   local box_name="$1"
   shift
@@ -637,7 +614,6 @@ function action_desktop_add() {
   local categories="Utility"
   local icon_file=""
   local isContainerIcon=false
-  local isRunMethod=false
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -651,8 +627,6 @@ function action_desktop_add() {
       "--categories")
         categories="$2"
         shift;;
-      "--run")
-        isRunMethod=true;;
       *)
         echo "Error: unknown flag: $1"
         show_ussage_message
@@ -666,19 +640,11 @@ function action_desktop_add() {
     icon_file="$HOME/.icons/$(basename "$icon_file")"
   fi
 
-  local command=""
-  if [ $isRunMethod = true ]; then
-    container_entry_point="$bin_name"
-    command="podbox run $box_name"
-  else
-    command="podbox exec $box_name $bin_name"
-  fi
-
   desktop="[Desktop Entry]
 Version=1.0
 Name=$icon_title
 GenericName=$icon_title
-Exec=$command
+Exec=podbox exec $box_name $bin_name
 Icon=$icon_file
 Terminal=false
 Type=Application
@@ -742,24 +708,6 @@ function action_desktop() {
   esac
 }
 
-function action_entry() {
-  local box_name="$1"
-  local bin_name="$2"
-
-  if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
-    exit 1
-  fi
-
-  checkIfBoxExist "$box_name"
-  read_settings_file "$box_name"
-
-  container_entry_point="$bin_name"
-
-  write_settings_file "$box_name"
-}
-
 function entry() {
   if [ "$#" -eq "0" ]; then
     show_ussage_message
@@ -773,7 +721,6 @@ function entry() {
     "create") action_create "$@" ;;
     "bash") action_bash "$@" ;;
     "exec") action_exec "$@" ;;
-    "run") action_run "$@" ;;
     "remove") action_remove "$@" ;;
     "volume") action_volume "$@" ;;
     "read-only") action_read_only "$@" ;;
@@ -784,7 +731,6 @@ function entry() {
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
-    "entry") action_entry "$@" ;;
     *)
       echo "Unknown command $action"
       show_ussage_message ;;
