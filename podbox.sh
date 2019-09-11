@@ -621,6 +621,11 @@ function action_security() {
 }
 
 function action_desktop_add() {
+  if [ "$#" -le 3 ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
   local box_name="$1"; shift
   local bin_name="$1"; shift
   local icon_title="$1"; shift
