@@ -154,16 +154,13 @@ function parse_config_params() {
       "--home")
         container_volumes["$2:/home/user"]="$2:/home/user"
         shift;;
-      -*)
+      *)
         echo "Error: unknown flag: $1"
         show_ussage_message
         exit 1;;
-      *)break;;
     esac
     shift
   done
-
-  parse_params=$@
 }
 
 function gen_podman_options() {
@@ -244,13 +241,6 @@ function action_create() {
   shift
 
   parse_config_params "$@"
-  set -- "$parse_params"
-
-  if [ "$#" -ne "1" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
-    exit 1
-  fi
 
   checkIfNoBoxExist "$box_name"
 
@@ -259,21 +249,28 @@ function action_create() {
 
   local home_mount=""
   for volume in "${container_volumes[@]}"; do
-    if [[ $volume == *":/home/user" ]] | [[ $volume == *":/home/user/" ]]; then
+    if [[ $volume == *":/home/user" ]]; then
       home_mount="${volume}"
+      echo 'home_cr'
     fi
+
+    echo "$volume"
   done
 
   local container_name="$container_prefix$box_name"
 
   if [ "${home_mount}" != "" ]; then
-    podman create --interactive --tty --name "$container_name" --user root "${home_mount}" registry.fedoraproject.org/fedora:30
+    podman create --interactive --tty --name "$container_name" --user root --volume "${home_mount}" --security-opt label=disable registry.fedoraproject.org/fedora:30
+    podman start "$container_name"
+    podman exec --user root "$container_name" useradd --uid "$user_id" user
+    podman exec --user root "$container_name" chown -R user:user /home/user
+    podman exec --user root "$container_name" cp -r /etc/skel/. /home/user
   else
     podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:30
+    podman start "$container_name"
+    podman exec --user root "$container_name" useradd --uid "$user_id" user
   fi
 
-  podman start "$container_name"
-  podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
