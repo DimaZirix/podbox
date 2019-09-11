@@ -261,7 +261,6 @@ function action_create() {
   for volume in "${container_volumes[@]}"; do
     if [[ $volume == *":/home/user" ]] | [[ $volume == *":/home/user/" ]]; then
       home_mount="${volume}"
-      echo "home"
     fi
   done
 
