@@ -24,7 +24,7 @@ function show_ussage_message() {
 	echo "      --type ro|rsync                       Moutn type"
 	echo "  volume rm Name /host/path               Remove volume from container"
 	echo "  read-only Name on|off                   Set container as read-only. All changes in container file system will be cleared on stop"
-	echo "  net Name on|off                         Add/Remove network permission"
+	echo "  net Name on|off|host                    Add/Remove network permission"
 	echo "  ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option"
 	echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
 	echo "  net Name on|off                         Add/Remove network permission"
@@ -181,6 +181,8 @@ function gen_podman_options() {
 
   if [ "${container_params["net"]}" = "on" ]; then
     podman_options+=" --network slirp4netns"
+  elif [ "${container_params["net"]}" = "host" ]; then
+    podman_options+=" --network host"
   else
     podman_options+=" --network none"
   fi
@@ -469,7 +471,7 @@ function action_net() {
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
-  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
+  if [ "$value" = "on" ] || [ "$value" = "off" ] || [ "$value" = "host" ]; then
     container_params["net"]="$value"
   else
     echo "Error: Illegal value $value"
