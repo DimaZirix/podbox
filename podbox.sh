@@ -149,10 +149,10 @@ function parse_config_params() {
         fi
         shift;;
       "--volume")
-        container_volumes["$2"]=("$2")
+        container_volumes["$2"]="$2"
         shift;;
       "--home")
-        container_volumes["$2:/home/user"]=("$2:/home/user")
+        container_volumes["$2:/home/user"]="$2:/home/user"
         shift;;
       -*)
         echo "Error: unknown flag: $1"
@@ -260,12 +260,19 @@ function action_create() {
   local home_mount=""
   for volume in "${container_volumes[@]}"; do
     if [[ $volume == *":/home/user" ]] | [[ $volume == *":/home/user/" ]]; then
-      home_mount=" --volume ${volume}"
+      home_mount="${volume}"
+      echo "home"
     fi
   done
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" --user root "${home_mount}" registry.fedoraproject.org/fedora:30
+
+  if [ "${home_mount}" != "" ]; then
+    podman create --interactive --tty --name "$container_name" --user root "${home_mount}" registry.fedoraproject.org/fedora:30
+  else
+    podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:30
+  fi
+
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
