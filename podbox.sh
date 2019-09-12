@@ -42,6 +42,7 @@ container_prefix=""
 declare -A container_volumes
 declare -A container_params
 declare -A container_desktop_entries
+declare -A container_port_list
 
 function read_settings_file() {
   local box_name="$1"
@@ -64,6 +65,8 @@ function read_settings_file() {
       container_params["${kv[0]}"]=${kv[1]}
     elif [ "$parse_block" = "#desktop" ]; then
       container_desktop_entries["${line}"]="${line}"
+    elif [ "$parse_block" = "#port" ]; then
+      container_port_list["${line}"]="${line}"
     fi
   done
 }
@@ -87,6 +90,12 @@ function write_settings_file() {
 
   echo '#desktop' >>"$config_file"
   for entry in "${container_desktop_entries[@]}"; do
+    echo "$entry" >>"$config_file"
+  done
+  echo '#end' >>"$config_file"
+
+  echo '#port' >>"$config_file"
+  for entry in "${container_port_list[@]}"; do
     echo "$entry" >>"$config_file"
   done
   echo '#end' >>"$config_file"
@@ -150,6 +159,9 @@ function parse_config_params() {
         shift;;
       "--volume")
         container_volumes["$2"]=("$2")
+        shift;;
+      "--port")
+        container_port_list["$2"]=("$2")
         shift;;
       -*)
         echo "Error: unknown flag: $1"
@@ -235,6 +247,10 @@ function gen_podman_options() {
 
   for volume in "${container_volumes[@]}"; do
     podman_options+=" --volume ${volume}"
+  done
+
+  for volume in "${container_port_list[@]}"; do
+    podman_options+=" --publish ${volume}"
   done
 }
 
@@ -710,6 +726,61 @@ function action_desktop() {
   esac
 }
 
+function action_port_add() {
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  local box_name="$1"
+  local port="$2"
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  container_port_list["$port"]="$port"
+
+  override_container_params "$box_name"
+  write_settings_file "$box_name"
+}
+
+function action_port_remove() {
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  local box_name="$1"
+  local port="$2"
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  for item in "${container_port_list[@]}"; do
+    if [ "$item" = "$port" ]; then
+      unset container_port_list["$item"]
+    fi
+  done
+
+  override_container_params "$box_name"
+  write_settings_file "$box_name"
+}
+
+function action_port() {
+  local action="$1"
+  shift
+
+  case "$action" in
+    "add") action_port_add "$@" ;;
+    "rm") action_port_remove "$@" ;;
+    *)
+      echo "Unknown command $action"
+      show_ussage_message ;;
+  esac
+}
+
 function entry() {
   if [ "$#" -eq "0" ]; then
     show_ussage_message
@@ -733,6 +804,7 @@ function entry() {
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
+    "port") action_port "$@" ;;
     *)
       echo "Unknown command $action"
       show_ussage_message ;;
