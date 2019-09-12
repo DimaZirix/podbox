@@ -36,6 +36,8 @@ function show_ussage_message() {
 	echo "      --cont_icon /path/to/icon             Set icon from container for desktop entry"
 	echo "      --categories /path/to/icon            Set categories for desktop entry"
 	echo "  desktop rm Name AppCmd                  Remove desktop entry"
+	echo "  port add Name port:port/tcp             Share port to host and containers"
+	echo "  port rm Name port[:port/tcp]            Remove port"
 }
 
 container_prefix=""
