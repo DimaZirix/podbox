@@ -1,4 +1,5 @@
-# Podman sandbox for GUI applications 
+# Container sandbox for GUI applications 
+Script uses podman to create and run aplications inside container
 
 #### Installing
 
@@ -10,7 +11,7 @@ or download and use podbox.sh
 
 #### Examples
 
-#### Tor browser inside podman container
+#### Tor browser inside container
 
 ```shell script
 podbox create torbrowser --gui --net --ipc --audio
