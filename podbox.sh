@@ -783,6 +783,58 @@ function action_port() {
   esac
 }
 
+function action_install_tar() {
+  if [ "$#" -lt 3 ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  local box_name="$1"; shift
+  local app_url="$1"; shift
+  local app_name="$1"; shift
+
+  local tar_params="-xz -C /opt/$app_name"
+  local bin_path=""
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--strip")
+        tar_params+=" --strip-components=1";;
+      "--bin")
+        bin_path="$2"
+        shift;;
+      *)
+        echo "Error: unknown flag: $1"
+        show_ussage_message
+        exit 1;;
+    esac
+    shift
+  done
+
+  exec_in_container "$box_name" "root" "dnf" "install" "-y" "wget"
+  exec_in_container "$box_name" "root" "mkdir" "-p" "/opt/$app_name"
+
+  local wgetcmd="wget -c $app_url -O - | tar $tar_params"
+  exec_in_container "$box_name" "root" "bash" "-c" "${wgetcmd}"
+
+  if [ "$bin_path" != "" ]; then
+    exec_in_container "$box_name" "root" "cp" "-s" "/opt/$app_name/$bin_path" "/usr/bin/$(basename "$bin_path")"
+  fi
+}
+
+function action_install() {
+  local action="$1"
+  shift
+
+  case "$action" in
+    "tar") action_install_tar "$@" ;;
+    *)
+      echo "Unknown command $action"
+      show_ussage_message ;;
+  esac
+}
+
 function entry() {
   if [ "$#" -eq "0" ]; then
     show_ussage_message
@@ -807,6 +859,7 @@ function entry() {
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
     "port") action_port "$@" ;;
+    "install") action_install "$@" ;;
     *)
       echo "Unknown command $action"
       show_ussage_message ;;
