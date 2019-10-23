@@ -1,4 +1,5 @@
-# Podman sandbox for GUI applications 
+# Container sandbox for GUI applications 
+Script uses podman to create and run aplications inside container
 
 #### Installing
 
@@ -10,7 +11,28 @@ or download and use podbox.sh
 
 #### Examples
 
-#### Tor browser inside podman container
+```shell script
+# create container with "ContainerName" name
+# run as user, no root/sudo required
+podbox create ContainerName --gui --net --ipc --audio
+
+# then run bash
+podbox bash ContainerName
+# (use --root option to run bash as root)
+
+# run command inside container
+podbox exec ContainerName Command
+# (use --root option to run command as root)
+
+# Create desktop icon for command inside container
+podbox desktop create ContainerName Command 'Desktop icon title'
+# (use --icon /path/to/icon/ option or --cont_icon /path/to/icon/inside/container)
+
+# add(share) path to container
+podbox volume add ContainerName /path
+```
+
+#### Install Tor browser inside container
 
 ```shell script
 podbox create torbrowser --gui --net --ipc --audio
