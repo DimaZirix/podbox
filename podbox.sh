@@ -279,8 +279,14 @@ function action_create() {
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
-  buildah commit --rm --squash "$container_name" "$container_name"
+
+  podman commit "$container_name" "temp_$container_name"
   podman rm "$container_name"
+  podman create --name "$container_name" "temp_$container_name"
+  podman commit "$container_name" "$container_name"
+  podman rm "$container_name"
+  podman rmi "temp_$container_name"
+
   eval "podman create $podman_options --user user $container_name"
 
   write_settings_file "$box_name"
@@ -294,8 +300,14 @@ function override_container_params() {
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
-  buildah commit --rm --squash "$container_name" "$container_name" 2> /dev/null
+
+  podman commit "$container_name" "temp_$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
+  podman create --name "$container_name" "temp_$container_name" 2> /dev/null
+  podman commit "$container_name" "$container_name"
+  podman rm "$container_name" 2> /dev/null
+  podman rmi "temp_$container_name" 2> /dev/null
+
   set -e
 
   eval "podman create $podman_options --user user $container_name"
