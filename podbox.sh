@@ -275,13 +275,17 @@ function action_create() {
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:30
+  podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:31
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
+
+  podman start "$container_name"
+  podman exec --user root "$container_name" chown -R "$user_id" "/run/user/$user_id"
+  podman stop "$container_name"
 
   write_settings_file "$box_name"
 }
