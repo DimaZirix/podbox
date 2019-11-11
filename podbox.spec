@@ -1,6 +1,6 @@
 Name:    podbox
 Version: 1
-Release: 0
+Release: 1
 Summary: podbox
 
 Source0: podbox.sh
@@ -22,12 +22,15 @@ mkdir -p %{buildroot}/%{_bindir}
 install -p -m 755 %{SOURCE0} %{buildroot}/%{_bindir}
 
 %post
-set +e
+if [ -f "/usr/bin/podbox" ]; then
+ unlink /usr/bin/podbox
+fi
 cp -s /usr/bin/podbox.sh /usr/bin/podbox
 
 %preun
-set +e
-unlink /usr/bin/podbox
+if [ -f "/usr/bin/podbox" ]; then
+  unlink /usr/bin/podbox
+fi
 
 %files
 %{_bindir}/podbox.sh
