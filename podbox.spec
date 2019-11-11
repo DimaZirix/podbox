@@ -22,9 +22,11 @@ mkdir -p %{buildroot}/%{_bindir}
 install -p -m 755 %{SOURCE0} %{buildroot}/%{_bindir}
 
 %post
+set +e
 cp -s /usr/bin/podbox.sh /usr/bin/podbox
 
 %preun
+set +e
 unlink /usr/bin/podbox
 
 %files
