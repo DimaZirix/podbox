@@ -283,9 +283,11 @@ function action_create() {
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
 
+  set +e
   podman start "$container_name"
   podman exec --user root "$container_name" chown -R "$user_id" "/run/user/$user_id"
   podman stop "$container_name"
+  set -e
 
   write_settings_file "$box_name"
 }
