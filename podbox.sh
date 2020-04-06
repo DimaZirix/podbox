@@ -826,10 +826,9 @@ function action_install_tar() {
     shift
   done
 
-  exec_in_container "$box_name" "root" "dnf" "install" "-y" "wget"
   exec_in_container "$box_name" "root" "mkdir" "-p" "/opt/$app_name"
 
-  local wgetcmd="wget -c $app_url -O - | tar $tar_params"
+  local wgetcmd="curl -L $app_url | tar $tar_params"
   exec_in_container "$box_name" "root" "bash" "-c" "${wgetcmd}"
 
   if [ "$bin_path" != "" ]; then
