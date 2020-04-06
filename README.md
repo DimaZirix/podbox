@@ -32,6 +32,18 @@ podbox desktop create ContainerName Command 'Desktop icon title'
 podbox volume add ContainerName /path
 ```
 
+#### Install Firefox inside container
+
+```shell script
+podbox create firefox --gui --net --ipc --audio
+podbox exec firefox --root dnf install firefox libXt dbus-glib gtk3 pulseaudio-libs -y
+podbox desktop create firefox firefox 'Firefox Inside Podbox' --icon firefox
+
+Now you can run browser with desktop icon or:
+podbox exec firefox firefox 
+
+```
+
 #### Install Tor browser inside container
 
 ```shell script
