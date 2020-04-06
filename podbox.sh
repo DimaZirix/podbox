@@ -195,10 +195,15 @@ function gen_podman_options() {
 
   if [ "${container_params["net"]}" = "on" ]; then
     podman_options+=" --network slirp4netns"
+  elif [ "${container_params["net"]}" = "admin" ]; then
+    podman_options+=" --network slirp4netns"
+    podman_options+=" --cap-add=NET_ADMIN"
   elif [ "${container_params["net"]}" = "host" ]; then
     podman_options+=" --network host"
-  else
+  elif [ "${container_params["net"]}" = "off" ]; then
     podman_options+=" --network none"
+  else
+    podman_options+=" --network ${container_params["net"]}"
   fi
 
   if [ "${container_params["ipc"]}" = "on" ]; then
@@ -275,7 +280,7 @@ function action_create() {
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" --user root registry.fedoraproject.org/fedora:31
+  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:31
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
@@ -662,6 +667,9 @@ function action_desktop_add() {
   done
 
   if [ $isContainerIcon = true ]; then
+    set +e
+    podman stop "$box_name" 2> /dev/null
+    set -e
     podman cp "$box_name:$icon_file" ~/.icons/
     icon_file="$HOME/.icons/$(basename "$icon_file")"
   fi
