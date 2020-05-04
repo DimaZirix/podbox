@@ -280,7 +280,7 @@ function action_create() {
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:31
+  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:latest
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
