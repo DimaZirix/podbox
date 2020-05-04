@@ -202,7 +202,7 @@ function gen_podman_options() {
     podman_options+=" --network host"
   elif [ "${container_params["net"]}" = "off" ]; then
     podman_options+=" --network none"
-  else
+  elif [ "${container_params["net"]}" != "" ]; then
     podman_options+=" --network ${container_params["net"]}"
   fi
 
