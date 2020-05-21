@@ -280,7 +280,7 @@ function action_create() {
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:latest
+  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:32
   podman start "$container_name"
   podman exec --user root "$container_name" useradd --uid "$user_id" user
   podman stop "$container_name"
@@ -500,13 +500,7 @@ function action_net() {
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
-  if [ "$value" = "on" ] || [ "$value" = "off" ] || [ "$value" = "host" ]; then
-    container_params["net"]="$value"
-  else
-    echo "Error: Illegal value $value"
-    show_ussage_message
-    exit 1
-  fi
+  container_params["net"]="$value"
 
   override_container_params "$box_name"
   write_settings_file "$box_name"
@@ -687,8 +681,8 @@ Categories=$categories
 
 X-Desktop-File-Install-Version=0.23"
 
-  rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
-  echo "$desktop" >> "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+  rm -f "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
+  echo "$desktop" >> "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
 
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
@@ -708,7 +702,7 @@ function action_desktop_remove() {
     exit 1
   fi
 
-  rm -f "/home/admin/.local/share/applications/$box_name-$bin_name.desktop"
+  rm -f "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
 
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
@@ -725,7 +719,7 @@ function desktop_remove_all() {
   read_settings_file "$box_name"
 
   for entry in "${container_desktop_entries[@]}"; do
-    rm -f "/home/admin/.local/share/applications/$entry.desktop"
+    rm -f "~${HOME}/.local/share/applications/$entry.desktop"
   done
 }
 
