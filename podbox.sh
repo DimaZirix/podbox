@@ -28,8 +28,10 @@ function show_ussage_message() {
 	echo "  ipc Name on|off                         Add/Remove ipc permission. Should be used with gui option"
 	echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
 	echo "  net Name on|off                         Add/Remove network permission"
+	echo "  gui Name on|off|3d                      Add/Remove X11/opengl permission to run programs with gui"
 	echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for container"
 	echo "  map-user Name on|off                    Map/Unmap host user to guest user"
+	echo "  system Name                             Run container as OS"
 	echo "  desktop create Name AppCmd AppName      Create desktop entry for container program"
   echo "    Available Options:"
 	echo "      --icon /path/to/icon                  Set icon for desktop entry"
@@ -146,6 +148,7 @@ function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       "--gui"|"--x11"|"--X11") container_params["gui"]="on";;
+      "--dri") container_params["dri"]="on";;
       "--audio") container_params["audio"]="on";;
       "--ipc") container_params["ipc"]="on";;
       "--map-user") container_params["map-user"]="on";;
@@ -211,15 +214,21 @@ function gen_podman_options() {
   fi
 
   # X11 Mapping
-  if [ "${container_params["gui"]}" = "on" ]; then
+  if [ "${container_params["gui"]}" == "on" ]; then
     podman_options+=" --env "DISPLAY=${DISPLAY}""
     podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix"
     podman_options+=" --device /dev/dri"
+    podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
+    podman_options+=" --volume $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY"
 
     container_params["map-user"]="on"
     if [ "${container_params["security"]}" = "" ]; then
       container_params["security"]="off"
     fi
+  fi
+  
+  if [ "${container_params["dri"]}" = "on" ]; then
+    podman_options+=" --volume /usr/lib64/dri:/usr/lib64/dri"
   fi
 
   # PulseAudio
@@ -262,27 +271,33 @@ function gen_podman_options() {
 }
 
 function action_create() {
+  local image_name="registry.fedoraproject.org/fedora:latest"
   local box_name="$1"
   shift
 
   parse_config_params "$@"
-  set -- "$parse_params"
-
-  if [ "$#" -ne "1" ]; then
+  set -- $parse_params
+  
+  if [ "$#" -ne "0" ]; then
+    image_name="$1"
+    shift
+  fi
+  
+  if [ "$#" -ne "0" ]; then
     echo "Error: Illegal count of arguments"
     show_ussage_message
     exit 1
   fi
-
+  
   checkIfNoBoxExist "$box_name"
 
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" registry.fedoraproject.org/fedora:32
+  podman create --interactive --tty --name "$container_name" "$image_name"
   podman start "$container_name"
-  podman exec --user root "$container_name" useradd --uid "$user_id" user
+  podman exec --user root "$container_name" useradd -m --uid "$user_id" user
   podman stop "$container_name"
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
@@ -355,6 +370,25 @@ function exec_in_container() {
 
   podman start "$container_name"
   podman exec --interactive --tty --user "$userName" "$container_name" "$command" "$@"
+}
+
+function action_run_as_system() {
+  local box_name="$1"
+  shift
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+  gen_podman_options "$box_name"
+
+  local container_name="$container_prefix$box_name"
+
+  set +e
+  podman stop --timeout 2 "$container_name" 2> /dev/null
+  podman commit "$container_name" "$container_name" 2> /dev/null
+  podman rm "$container_name" 2> /dev/null
+  set -e
+  
+  podman run --interactive --systemd=always --tty --user root $podman_options "$container_name" "/sbin/init"
 }
 
 function action_bash() {
@@ -546,6 +580,31 @@ function action_gui() {
 
   if [ "$value" = "on" ] || [ "$value" = "off" ]; then
     container_params["gui"]="$value"
+  else
+    echo "Error: Illegal value $value"
+    show_ussage_message
+    exit 1
+  fi
+
+  override_container_params "$box_name"
+  write_settings_file "$box_name"
+}
+
+function action_dri() {
+  local box_name="$1"
+  local value="$2"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal count of arguments"
+    show_ussage_message
+    exit 1
+  fi
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
+    container_params["dri"]="$value"
   else
     echo "Error: Illegal value $value"
     show_ussage_message
@@ -861,12 +920,14 @@ function entry() {
     "net") action_net "$@" ;;
     "ipc") action_ipc "$@" ;;
     "gui") action_gui "$@" ;;
+    "dri") action_dri "$@" ;;
     "audio") action_audio "$@" ;;
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
     "port") action_port "$@" ;;
     "install") action_install "$@" ;;
+    "system") action_run_as_system "$@" ;;
     *)
       echo "Unknown command $action"
       show_ussage_message ;;
