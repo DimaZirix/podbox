@@ -183,6 +183,8 @@ function parse_config_params() {
 function gen_podman_options() {
   local box_name="$1"
   local container_name="$container_prefix$box_name"
+  
+  local session_type=$(echo $XDG_SESSION_TYPE)
 
   podman_options=""
   podman_options+=" --name $container_name"
@@ -218,8 +220,11 @@ function gen_podman_options() {
     podman_options+=" --env "DISPLAY=${DISPLAY}""
     podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix"
     podman_options+=" --device /dev/dri"
-    podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
-    podman_options+=" --volume $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY"
+    
+    if [ "$session_type" = "wayland" ]; then
+      podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
+      podman_options+=" --volume $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+    fi
 
     container_params["map-user"]="on"
     if [ "${container_params["security"]}" = "" ]; then
