@@ -220,6 +220,8 @@ function gen_podman_options() {
     podman_options+=" --env "DISPLAY=${DISPLAY}""
     podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix"
     podman_options+=" --device /dev/dri"
+    podman_options+=" -v $XAUTHORITY:/dev/.Xauthority"
+    podman_options+=" --env "XAUTHORITY=/dev/.Xauthority""
     
     if [ "$session_type" = "wayland" ]; then
       podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
@@ -276,7 +278,7 @@ function gen_podman_options() {
 }
 
 function action_create() {
-  local image_name="registry.fedoraproject.org/fedora:latest"
+  local image_name="registry.fedoraproject.org/fedora:$(rpm -E %fedora)"
   local box_name="$1"
   shift
 
