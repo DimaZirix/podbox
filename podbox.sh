@@ -217,11 +217,13 @@ function gen_podman_options() {
 
   # X11 Mapping
   if [ "${container_params["gui"]}" == "on" ]; then
-    podman_options+=" --env "DISPLAY=${DISPLAY}""
-    podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix"
+    podman_options+=" --env DISPLAY"
+    podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix:ro"
     podman_options+=" --device /dev/dri"
-    podman_options+=" -v $XAUTHORITY:/dev/.Xauthority"
-    podman_options+=" --env "XAUTHORITY=/dev/.Xauthority""
+    podman_options+=" -v $XAUTHORITY:$XAUTHORITY"
+    podman_options+=" --env XAUTHORITY"
+#    podman_options+=" --shm-size=10g"
+ #   podman_options+=" --cpus 1"
     
     if [ "$session_type" = "wayland" ]; then
       podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
@@ -306,7 +308,7 @@ function action_create() {
   podman start "$container_name"
   podman exec --user root "$container_name" useradd -m --uid "$user_id" user
   podman stop "$container_name"
-  podman commit "$container_name" "$container_name"
+  podman commit --change SIGKILL --squash "$container_name" "$container_name"
   podman rm "$container_name"
   eval "podman create $podman_options --user user $container_name"
 
@@ -327,7 +329,7 @@ function override_container_params() {
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
-  podman commit "$container_name" "$container_name" 2> /dev/null
+  podman commit --change SIGKILL --squash "$container_name" "$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
   set -e
 
@@ -367,6 +369,24 @@ function exec_in_container() {
 
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
+  
+  local reset_container="false"
+  if [ "${container_params["display_id"]}" != "$DISPLAY" ]; then
+    container_params["display_id"]="$DISPLAY"
+    
+    reset_container="true"
+  fi
+  if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
+    container_params["XAUTHORITY"]="$XAUTHORITY"
+    
+    reset_container="true"
+  fi
+  
+  if [ "${reset_container}" = "true" ]; then
+    override_container_params "$box_name"
+    write_settings_file "$box_name"
+  fi
+  
   gen_podman_options "$box_name"
 
   local container_name="$container_prefix$box_name"
@@ -391,7 +411,7 @@ function action_run_as_system() {
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
-  podman commit "$container_name" "$container_name" 2> /dev/null
+  podman commit --change SIGKILL --squash "$container_name" "$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
   set -e
   
