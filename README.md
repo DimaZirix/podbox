@@ -1,5 +1,8 @@
-# Container sandbox for GUI applications 
-Script uses podman to create and run an aplications inside a container
+# Container sandbox for GUI applications
+
+Script uses podman to create and run applications inside a container.
+Works on both X11 and Wayland sessions: the display sockets, xauth cookie,
+D-Bus and PulseAudio are wired into the container automatically.
 
 #### Installing
 
@@ -26,9 +29,10 @@ podbox exec ContainerName Command
 
 # Create a desktop icon for the command inside the container
 podbox desktop create ContainerName Command 'Desktop icon title'
-# (use --icon /path/to/icon/ option or --cont_icon /path/to/icon/inside/container)
+# (use --icon for a host icon path or themed icon name,
+#  or --cont_icon for an icon path inside the container)
 
-# add(share) path to the a container
+# add (share) a host path into the container
 podbox volume add ContainerName /path
 ```
 
@@ -39,9 +43,8 @@ podbox create firefox --gui --net --ipc --audio
 podbox exec firefox --root dnf install firefox libXt dbus-glib gtk3 pulseaudio-libs -y
 podbox desktop create firefox firefox 'Firefox Inside Podbox' --icon firefox
 
-Now you can run browser with desktop icon or:
-podbox exec firefox firefox 
-
+# Now you can run the browser with the desktop icon or:
+podbox exec firefox firefox
 ```
 
 #### Install Tor browser inside a container
@@ -54,10 +57,11 @@ podbox exec torbrowser --root cp -s /home/user/.local/share/torbrowser/tbb/x86_6
 podbox read-only torbrowser on
 podbox desktop create torbrowser torbrowser 'TorBrowser in PodBox' --icon torbrowser
 
-Now you can run browser with desktop icon or:
+# Now you can run the browser with the desktop icon or:
 podbox exec torbrowser torbrowser
-
 ```
+
+#### Usage
 
 ```
 Usage: 
@@ -65,32 +69,41 @@ Usage:
 Available Commands:
   create Name [OPTIONS]                   Create a new container
     Available Options:
-      --gui                                 Add X11 permission to run GUI programs
-      --ipc                                 Add ipc permission. Should be used with GUI option
+      --gui                                 Add X11 permission to run programs with a GUI
+      --ipc                                 Add IPC permission. Should be used with the --gui option
       --audio                               Add PulseAudio permission to play audio
       --net                                 Add network permission
       --security on|off|unconfined          Enable/Disable SELinux permissions for the container
-      --map-user                            Map host user to guest user
-      --volume /host/path[:/cont/path]      Mount path to the container
-  bash Name [--root]                      Run shell inside the container
-  exec Name command                       Run command inside the container
+      --map-user                            Map the host user to the guest user
+      --volume /host/path[:/cont/path]      Mount a path into the container
+      --port port:port/tcp                  Publish a container port to the host
+  bash Name [--root]                      Run a shell inside the container
+  exec Name command                       Run a command inside the container
   remove Name                             Remove the container
-  volume add Name /host/path [OPTIONS]    Add volume to container
+  volume add Name /host/path [OPTIONS]    Add a volume to the container
     Available Options:
-      --to [/container/path]                Set container path
-      --type ro|rsync                       Moutn type
-  volume rm Name /host/path               Remove the volume from container
-  read-only Name on|off                   Make the container read-only. All changes to the container's file system will be deleted on stop
-  net Name on|off                         Add/Remove network permission
-  ipc Name on|off                         Add/remove ipc permission. Should be used with GUI option
+      --to [/container/path]                Set the container path
+      --type ro|rsync                       Mount type
+  volume rm Name /host/path               Remove a volume from the container
+  read-only Name on|off                   Set the container as read-only. All changes in the container's file system will be cleared on stop
+  net Name on|off|host|admin              Add/Remove network permission
+  ipc Name on|off                         Add/Remove IPC permission. Should be used with the gui option
   audio Name on|off                       Add/Remove PulseAudio permission to play audio
-  net Name on|off                         Add/Remove network permission
+  gui Name on|off                         Add/Remove X11 permission to run programs with a GUI
   security Name on|off|unconfined         Enable/Disable SELinux permissions for the container
-  map-user Name on|off                    Map/Unmap host user to guest user
-  desktop create Name AppCmd AppName      Create desktop entry for container program
+  map-user Name on|off                    Map/Unmap the host user to the guest user
+  system Name                             Run the container as an OS
+  desktop create Name AppCmd AppName      Create a desktop entry for a container program
     Available Options:
-      --icon /path/to/icon                  Set desktop entry icon from container icon path
-      --cont_icon /path/to/icon             Set desktop entry icon from host icon path
-      --categories /path/to/icon            Set desktop entry categories
-  desktop rm Name AppCmd                  Remove desktop entry
+      --icon /path/to/icon                  Set an icon for the desktop entry
+      --cont_icon /path/to/icon             Set an icon from the container for the desktop entry
+      --categories Category1;Category2      Set categories for the desktop entry
+      --wmclass WMClass                     Set StartupWMClass for the desktop entry
+  desktop rm Name AppCmd                  Remove a desktop entry
+  port add Name port:port/tcp             Publish a port to the host and other containers
+  port rm Name port[:port/tcp]            Remove a published port
+  install tar Name Url AppName [OPTIONS]  Download a tar archive and unpack it into /opt inside the container
+    Available Options:
+      --strip                               Strip the top-level directory from the archive
+      --bin path/in/app                     Symlink a binary from the app directory into /usr/bin
 ```
