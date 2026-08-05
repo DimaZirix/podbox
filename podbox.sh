@@ -9,7 +9,7 @@ function show_usage_message() {
   echo "  create Name [OPTIONS]                   Create a new container"
   echo "    Available Options:"
   echo "      --gui                                 Add X11 permission to run programs with a GUI"
-  echo "      --ipc                                 Add IPC permission. Should be used with the --gui option"
+  echo "      --ipc                                 Share the host IPC namespace (only needed by legacy X11 apps using SysV-shm MIT-SHM)"
   echo "      --audio                               Add PulseAudio permission to play audio"
   echo "      --net                                 Add network permission"
   echo "      --security on|off|unconfined          Enable/Disable SELinux permissions for the container"
@@ -26,7 +26,7 @@ function show_usage_message() {
   echo "  volume rm Name /host/path               Remove a volume from the container"
   echo "  read-only Name on|off                   Set the container as read-only. All changes in the container's file system will be cleared on stop"
   echo "  net Name on|off|host|admin              Add/Remove network permission"
-  echo "  ipc Name on|off                         Add/Remove IPC permission. Should be used with the gui option"
+  echo "  ipc Name on|off                         Share the host IPC namespace on/off (only needed by legacy X11 apps using SysV-shm MIT-SHM)"
   echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
   echo "  gui Name on|off                         Add/Remove X11 permission to run programs with a GUI"
   echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for the container"
@@ -195,7 +195,16 @@ function gen_podman_options() {
 
   podman_options=()
   podman_options+=(--name "$container_name")
-  podman_options+=(--hostname "$box_name")
+  if [ "${container_params["gui"]}" = "on" ]; then
+    # GUI boxes must use the host's hostname (like Flatpak does): toolkits put
+    # the hostname into WM_CLIENT_MACHINE on X11 windows, and KWin resolves it
+    # via DNS. An unresolvable box hostname blocks the compositor main thread
+    # in KWin::ClientMachine when short-lived windows (tooltips, popups) are
+    # destroyed, freezing the whole desktop for the 2-3s DNS timeout.
+    podman_options+=(--hostname "$(uname -n)")
+  else
+    podman_options+=(--hostname "$box_name")
+  fi
   podman_options+=(--interactive)
   podman_options+=(--tty)
   podman_options+=(--userns=keep-id)
@@ -310,10 +319,6 @@ function action_create() {
   fi
   
   checkIfNoBoxExist "$box_name"
-
-  if [ "${container_params["gui"]}" = "on" ] && [ "${container_params["ipc"]}" != "on" ]; then
-    echo "Warning: X11 apps may render slowly and freeze the compositor without IPC sharing. Consider adding --ipc." >&2
-  fi
 
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
@@ -668,10 +673,6 @@ function action_gui() {
     echo "Error: Illegal value $value"
     show_usage_message
     exit 1
-  fi
-
-  if [ "$value" = "on" ] && [ "${container_params["ipc"]}" != "on" ]; then
-    echo "Warning: X11 apps may render slowly and freeze the compositor without IPC sharing. Consider 'podbox ipc $box_name on'." >&2
   fi
 
   override_container_params "$box_name"
