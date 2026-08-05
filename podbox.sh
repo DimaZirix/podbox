@@ -2,40 +2,49 @@
 
 set -e
 
-function show_ussage_message() {
+function show_usage_message() {
   echo "Usage: "
   echo "  podbox command"
   echo "Available Commands:"
   echo "  create Name [OPTIONS]                   Create a new container"
   echo "    Available Options:"
-  echo "      --gui                                 Add X11 permission to run GUI programs"
-  echo "      --ipc                                 Add ipc permission. Should be used with GUI option"
+  echo "      --gui                                 Add X11 permission to run programs with a GUI"
+  echo "      --ipc                                 Add IPC permission. Should be used with the --gui option"
   echo "      --audio                               Add PulseAudio permission to play audio"
   echo "      --net                                 Add network permission"
   echo "      --security on|off|unconfined          Enable/Disable SELinux permissions for the container"
-  echo "      --map-user                            Map host user to guest user"
-  echo "      --volume /host/path[:/cont/path]      Mount path to the container"
-  echo "  bash Name [--root]                      Run shell inside the container"
-  echo "  exec Name command                       Run command inside the container"
+  echo "      --map-user                            Map the host user to the guest user"
+  echo "      --volume /host/path[:/cont/path]      Mount a path into the container"
+  echo "      --port port:port/tcp                  Publish a container port to the host"
+  echo "  bash Name [--root]                      Run a shell inside the container"
+  echo "  exec Name command                       Run a command inside the container"
   echo "  remove Name                             Remove the container"
-  echo "  volume add Name /host/path [OPTIONS]    Add volume to container"
+  echo "  volume add Name /host/path [OPTIONS]    Add a volume to the container"
   echo "    Available Options:"
-  echo "      --to [/container/path]                Set container path"
-  echo "      --type ro|rsync                       Moutn type"
-  echo "  volume rm Name /host/path               Remove the volume from container"
-  echo "  read-only Name on|off                   Make the container read-only. All changes to the container's file system will be deleted on stop"
-  echo "  net Name on|off                         Add/Remove network permission"
-  echo "  ipc Name on|off                         Add/remove ipc permission. Should be used with GUI option"
+  echo "      --to [/container/path]                Set the container path"
+  echo "      --type ro|rsync                       Mount type"
+  echo "  volume rm Name /host/path               Remove a volume from the container"
+  echo "  read-only Name on|off                   Set the container as read-only. All changes in the container's file system will be cleared on stop"
+  echo "  net Name on|off|host|admin              Add/Remove network permission"
+  echo "  ipc Name on|off                         Add/Remove IPC permission. Should be used with the gui option"
   echo "  audio Name on|off                       Add/Remove PulseAudio permission to play audio"
-  echo "  net Name on|off                         Add/Remove network permission"
+  echo "  gui Name on|off                         Add/Remove X11 permission to run programs with a GUI"
   echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for the container"
-  echo "  map-user Name on|off                    Map/Unmap host user to guest user"
-  echo "  desktop create Name AppCmd AppName      Create desktop entry for container program"
+  echo "  map-user Name on|off                    Map/Unmap the host user to the guest user"
+  echo "  system Name                             Run the container as an OS"
+  echo "  desktop create Name AppCmd AppName      Create a desktop entry for a container program"
   echo "    Available Options:"
-  echo "      --icon /path/to/icon                  Set desktop entry icon from container icon path"
-  echo "      --cont_icon /path/to/icon             Set desktop entry icon from host icon path"
-  echo "      --categories /path/to/icon            Set desktop entry categories"
-  echo "  desktop rm Name AppCmd                  Remove desktop entry"
+  echo "      --icon /path/to/icon                  Set an icon for the desktop entry"
+  echo "      --cont_icon /path/to/icon             Set an icon from the container for the desktop entry"
+  echo "      --categories Category1;Category2      Set categories for the desktop entry"
+  echo "      --wmclass WMClass                     Set StartupWMClass for the desktop entry"
+  echo "  desktop rm Name AppCmd                  Remove a desktop entry"
+  echo "  port add Name port:port/tcp             Publish a port to the host and other containers"
+  echo "  port rm Name port[:port/tcp]            Remove a published port"
+  echo "  install tar Name Url AppName [OPTIONS]  Download a tar archive and unpack it into /opt inside the container"
+  echo "    Available Options:"
+  echo "      --strip                               Strip the top-level directory from the archive"
+  echo "      --bin path/in/app                     Symlink a binary from the app directory into /usr/bin"
 }
 
 container_prefix=""
@@ -50,19 +59,20 @@ function read_settings_file() {
   mkdir -p "$(dirname "$config_file")"
 
   local line_list=()
-  set +e
-  readarray -d $'\n' -t line_list < "$config_file"
-  set -e
+  if [ -f "$config_file" ]; then
+    readarray -d $'\n' -t line_list < "$config_file"
+  fi
 
   local parse_block=""
   for line in "${line_list[@]}"; do
-    if [[ ${line:0:1} == "#" ]]; then
+    if [ "$line" = "" ]; then
+      continue
+    elif [[ ${line:0:1} == "#" ]]; then
       parse_block="$line"
     elif [ "$parse_block" = "#volumes" ]; then
       container_volumes["${line}"]="${line}"
     elif [ "$parse_block" = "#params" ]; then
-      local kv=(${line//=/ })
-      container_params["${kv[0]}"]=${kv[1]}
+      container_params["${line%%=*}"]="${line#*=}"
     elif [ "$parse_block" = "#desktop" ]; then
       container_desktop_entries["${line}"]="${line}"
     elif [ "$parse_block" = "#port" ]; then
@@ -119,7 +129,7 @@ function checkIfNoBoxExist() {
   set -e
 
   if [ $status_c -eq 0 ] || [ $status_i -eq 0 ]; then
-    echo "Error: box with name $box_name exsist"
+    echo "Error: box named $box_name already exists"
     exit 1
   fi
 }
@@ -135,7 +145,7 @@ function checkIfBoxExist() {
   set -e
 
   if [ $status_c -ne 0 ] && [ $status_i -ne 0 ]; then
-    echo "Error: box with name $box_name not found"
+    echo "Error: box named $box_name not found"
     exit 1
   fi
 }
@@ -144,7 +154,6 @@ function parse_config_params() {
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       "--gui"|"--x11"|"--X11") container_params["gui"]="on";;
-      "--dri") container_params["dri"]="on";;
       "--audio") container_params["audio"]="on";;
       "--ipc") container_params["ipc"]="on";;
       "--map-user") container_params["map-user"]="on";;
@@ -154,93 +163,110 @@ function parse_config_params() {
           container_params["security"]="$2"
         else
           echo "Error: Illegal value $2"
-          show_ussage_message
+          show_usage_message
           exit 1
         fi
         shift;;
       "--volume")
-        container_volumes["$2"]=("$2")
+        container_volumes["$2"]="$2"
         shift;;
       "--port")
-        container_port_list["$2"]=("$2")
+        container_port_list["$2"]="$2"
         shift;;
       -*)
         echo "Error: unknown flag: $1"
-        show_ussage_message
+        show_usage_message
         exit 1;;
       *)break;;
     esac
     shift
   done
 
-  parse_params=$@
+  parse_params=("$@")
 }
 
 function gen_podman_options() {
   local box_name="$1"
   local container_name="$container_prefix$box_name"
-  
-  local session_type=$(echo $XDG_SESSION_TYPE)
 
-  podman_options=""
-  podman_options+=" --name $container_name"
-  podman_options+=" --hostname $box_name"
-  podman_options+=" --interactive"
-  podman_options+=" --tty"
-  podman_options+=" --env LANG=C.UTF-8"
-  podman_options+=" --env TERM=${TERM}"
+  local user_id=$(id -ru)
+
+  local session_type="$XDG_SESSION_TYPE"
+
+  podman_options=()
+  podman_options+=(--name "$container_name")
+  podman_options+=(--hostname "$box_name")
+  podman_options+=(--interactive)
+  podman_options+=(--tty)
+  podman_options+=(--userns=keep-id)
+  podman_options+=(--env LANG=C.UTF-8)
+  podman_options+=(--env "TERM=${TERM}")
 
   if [ "${container_params["read-only"]}" = "on" ]; then
-    podman_options+=" --rm"
+    podman_options+=(--rm)
   fi
 
   if [ "${container_params["net"]}" = "on" ]; then
-    podman_options+=" --network slirp4netns"
+    podman_options+=(--network pasta)
   elif [ "${container_params["net"]}" = "admin" ]; then
-    podman_options+=" --network slirp4netns"
-    podman_options+=" --cap-add=NET_ADMIN"
+    podman_options+=(--network pasta)
+    podman_options+=(--cap-add=NET_ADMIN)
   elif [ "${container_params["net"]}" = "host" ]; then
-    podman_options+=" --network host"
+    podman_options+=(--network host)
   elif [ "${container_params["net"]}" = "off" ]; then
-    podman_options+=" --network none"
+    podman_options+=(--network none)
   elif [ "${container_params["net"]}" != "" ]; then
-    podman_options+=" --network ${container_params["net"]}"
+    podman_options+=(--network "${container_params["net"]}")
   fi
 
   if [ "${container_params["ipc"]}" = "on" ]; then
-    podman_options+=" --ipc host"
+    podman_options+=(--ipc host)
   fi
 
-  # X11 Mapping
+  # X11 mapping
   if [ "${container_params["gui"]}" == "on" ]; then
-    podman_options+=" --env DISPLAY"
-    podman_options+=" --volume /tmp/.X11-unix:/tmp/.X11-unix:ro"
-    podman_options+=" --device /dev/dri"
-    podman_options+=" -v $XAUTHORITY:$XAUTHORITY"
-    podman_options+=" --env XAUTHORITY"
-#    podman_options+=" --shm-size=10g"
- #   podman_options+=" --cpus 1"
-    
+    podman_options+=(--env DISPLAY)
+    podman_options+=(--volume /tmp/.X11-unix:/tmp/.X11-unix:ro)
+    podman_options+=(--device /dev/dri)
+
+    podman_options+=(--env "XDG_SESSION_TYPE=$XDG_SESSION_TYPE")
+
+    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+      podman_options+=(--env "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP")
+    fi
+
+    if [ -n "$XAUTHORITY" ]; then
+      podman_options+=(--volume "/run/user/$user_id/xauthmnbv:$XAUTHORITY")
+      podman_options+=(--env XAUTHORITY)
+    fi
+
+    podman_options+=(--env "XDG_RUNTIME_DIR=/run/user/tmp")
+#    podman_options+=(--env "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/tmp/bus")
+    podman_options+=(--volume "/run/user/$user_id/bus:/run/user/tmp/bus")
+#    podman_options+=(--security-opt label=disable)
+#    podman_options+=(--shm-size=10g)
+#    podman_options+=(--cpus 1)
+
     if [ "$session_type" = "wayland" ]; then
-      podman_options+=" --env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY""
-      podman_options+=" --volume $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+      podman_options+=(--env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY")
+      podman_options+=(--volume "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/run/user/tmp/$WAYLAND_DISPLAY:ro")
+      # Prefer Wayland but fall back to X11 if the toolkit's Wayland plugin is missing
+      podman_options+=(--env "QT_QPA_PLATFORM=wayland;xcb")
+      podman_options+=(--env "GDK_BACKEND=wayland,x11")
+      podman_options+=(--env MOZ_ENABLE_WAYLAND=1)
+      podman_options+=(--env ELECTRON_OZONE_PLATFORM_HINT=auto)
     fi
 
     container_params["map-user"]="on"
     if [ "${container_params["security"]}" = "" ]; then
       container_params["security"]="off"
     fi
-  fi
-  
-  if [ "${container_params["dri"]}" = "on" ]; then
-    podman_options+=" --volume /usr/lib64/dri:/usr/lib64/dri"
   fi
 
   # PulseAudio
   if [ "${container_params["audio"]}" = "on" ]; then
-    podman_options+=" --volume /etc/machine-id:/etc/machine-id:ro"
-    podman_options+=" --env XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"
-    podman_options+=" --volume ${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native"
+    podman_options+=(--volume /etc/machine-id:/etc/machine-id:ro)
+    podman_options+=(--volume "${XDG_RUNTIME_DIR}/pulse/native:/run/user/tmp/pulse/native:ro")
 
     container_params["map-user"]="on"
     if [ "${container_params["security"]}" = "" ]; then
@@ -248,30 +274,19 @@ function gen_podman_options() {
     fi
   fi
 
-  # Current user mapping
-  if [ "${container_params["map-user"]}" = "on" ]; then
-    local id_real=$(id -ru)
-    local uid_count=65536
-    local minus_uid=$((uid_count - id_real))
-    local plus_uid=$((id_real + 1))
-    podman_options+=" --uidmap ${id_real}:0:1"
-    podman_options+=" --uidmap 0:1:${id_real}"
-    podman_options+=" --uidmap ${plus_uid}:${plus_uid}:${minus_uid}"
-  fi
-
   if [ "${container_params["security"]}" = "off" ]; then
-    podman_options+=" --security-opt label=disable"
+    podman_options+=(--security-opt=no-new-privileges)
   elif [ "${container_params["security"]}" = "unconfined" ]; then
-    podman_options+=" --security-opt label=disable"
-    podman_options+=" --security-opt seccomp=unconfined"
+    podman_options+=(--cap-drop=ALL --security-opt=no-new-privileges)
+    podman_options+=(--security-opt seccomp=unconfined)
   fi
 
   for volume in "${container_volumes[@]}"; do
-    podman_options+=" --volume ${volume}"
+    podman_options+=(--volume "${volume}")
   done
 
-  for volume in "${container_port_list[@]}"; do
-    podman_options+=" --publish ${volume}"
+  for port in "${container_port_list[@]}"; do
+    podman_options+=(--publish "${port}")
   done
 }
 
@@ -281,7 +296,7 @@ function action_create() {
   shift
 
   parse_config_params "$@"
-  set -- $parse_params
+  set -- "${parse_params[@]}"
   
   if [ "$#" -ne "0" ]; then
     image_name="$1"
@@ -289,47 +304,84 @@ function action_create() {
   fi
   
   if [ "$#" -ne "0" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
   
   checkIfNoBoxExist "$box_name"
 
+  if [ "${container_params["gui"]}" = "on" ] && [ "${container_params["ipc"]}" != "on" ]; then
+    echo "Warning: X11 apps may render slowly and freeze the compositor without IPC sharing. Consider adding --ipc." >&2
+  fi
+
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
 
+  if [ -n "$XAUTHORITY" ]; then
+    rm -f "/run/user/$user_id/xauthmnbv"
+    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
+  fi
+
   local container_name="$container_prefix$box_name"
-  podman create --interactive --tty --name "$container_name" "$image_name"
+  podman create --stop-signal SIGABRT --interactive --tty --name "$container_name" "$image_name"
   podman start "$container_name"
   podman exec --user root "$container_name" useradd -m --uid "$user_id" user
+  podman exec --user root "$container_name" mkdir -p "/run/user/tmp/pulse"
+  podman exec --user root "$container_name" chown -R "$user_id:$user_id" "/run/user/tmp"
   podman stop "$container_name"
-  podman commit --change SIGKILL --squash "$container_name" "$container_name"
+  podman commit "$container_name" "$container_name"
   podman rm "$container_name"
-  eval "podman create $podman_options --user user $container_name"
-
-  set +e
-  podman start "$container_name"
-  podman exec --user root "$container_name" chown -R "$user_id" "/run/user/$user_id"
-  podman stop "$container_name"
-  set -e
+  podman create --stop-signal SIGABRT "${podman_options[@]}" --user user "$container_name"
 
   write_settings_file "$box_name"
 }
 
-function override_container_params() {
+function reset_container_params() {
   local box_name="$1"
+  local user_id=$(id -ru)
 
   local container_name="$container_prefix$box_name"
   gen_podman_options "$box_name"
 
+  if [ -n "$XAUTHORITY" ]; then
+    rm -f "/run/user/$user_id/xauthmnbv"
+    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
+  fi
+
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
-  podman commit --change SIGKILL --squash "$container_name" "$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
   set -e
 
-  eval "podman create $podman_options --user user $container_name"
+  podman create --stop-signal SIGABRT "${podman_options[@]}" --user user "$container_name"
+}
+
+
+function override_container_params() {
+  local box_name="$1"
+  local user_id=$(id -ru)
+
+  local container_name="$container_prefix$box_name"
+  gen_podman_options "$box_name"
+
+  if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
+    container_params["XAUTHORITY"]="$XAUTHORITY"
+
+    if [ -n "$XAUTHORITY" ]; then
+      rm -f "/run/user/$user_id/xauthmnbv"
+      ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
+    fi
+    write_settings_file "$box_name"
+  fi
+
+  set +e
+  podman stop --timeout 2 "$container_name" 2> /dev/null
+  podman commit "$container_name" "$container_name" 2> /dev/null
+  podman rm "$container_name" 2> /dev/null
+  set -e
+
+  podman create --stop-signal SIGABRT "${podman_options[@]}" --user user "$container_name"
 }
 
 function action_remove() {
@@ -337,8 +389,8 @@ function action_remove() {
   shift
 
   if [ "$#" -ne "0" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -363,6 +415,8 @@ function exec_in_container() {
   local command="$1"
   shift
 
+  local user_id=$(id -ru)
+
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
   
@@ -372,10 +426,16 @@ function exec_in_container() {
     
     reset_container="true"
   fi
+
   if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
     container_params["XAUTHORITY"]="$XAUTHORITY"
-    
-    reset_container="true"
+
+    #reset_container="true"
+    if [ -n "$XAUTHORITY" ]; then
+      rm -f "/run/user/$user_id/xauthmnbv"
+      ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
+    fi
+    write_settings_file "$box_name"
   fi
   
   if [ "${reset_container}" = "true" ]; then
@@ -387,10 +447,11 @@ function exec_in_container() {
 
   local container_name="$container_prefix$box_name"
 
-  set +e
-  eval "podman create $podman_options --user user $container_name" 2> /dev/null
-  set -e
+  if ! podman container exists "$container_name"; then
+    podman create --stop-signal SIGABRT "${podman_options[@]}" --user user "$container_name"
+  fi
 
+  #xhost +SI:localuser:$(whoami)
   podman start "$container_name"
   podman exec --interactive --tty --user "$userName" "$container_name" "$command" "$@"
 }
@@ -407,11 +468,11 @@ function action_run_as_system() {
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
-  podman commit --change SIGKILL --squash "$container_name" "$container_name" 2> /dev/null
+  podman commit "$container_name" "$container_name" 2> /dev/null
   podman rm "$container_name" 2> /dev/null
   set -e
   
-  podman run --interactive --systemd=always --tty --user root $podman_options "$container_name" "/sbin/init"
+  podman run --interactive --systemd=always --tty --user root "${podman_options[@]}" "$container_name" "/sbin/init"
 }
 
 function action_bash() {
@@ -426,7 +487,7 @@ function action_bash() {
         userName="root";;
       *)
         echo "Error: unknown flag: $1"
-        show_ussage_message
+        show_usage_message
         exit 1;;
     esac
     shift
@@ -466,7 +527,7 @@ function action_volume_add() {
         shift;;
       *)
         echo "Error: unknown flag: $1"
-        show_ussage_message
+        show_usage_message
         exit 1;;
     esac
     shift
@@ -488,8 +549,8 @@ function action_volume_remove() {
   local host_path="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -515,7 +576,7 @@ function action_volume() {
     "rm") action_volume_remove "$@" ;;
     *)
       echo "Unknown command $action"
-      show_ussage_message ;;
+      show_usage_message ;;
   esac
 }
 
@@ -524,8 +585,8 @@ function action_read_only() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -536,7 +597,7 @@ function action_read_only() {
     container_params["read-only"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -549,8 +610,8 @@ function action_net() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -568,8 +629,8 @@ function action_ipc() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -580,7 +641,7 @@ function action_ipc() {
     container_params["ipc"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -593,8 +654,8 @@ function action_gui() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -605,33 +666,12 @@ function action_gui() {
     container_params["gui"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
-  override_container_params "$box_name"
-  write_settings_file "$box_name"
-}
-
-function action_dri() {
-  local box_name="$1"
-  local value="$2"
-
-  if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
-    exit 1
-  fi
-
-  checkIfBoxExist "$box_name"
-  read_settings_file "$box_name"
-
-  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
-    container_params["dri"]="$value"
-  else
-    echo "Error: Illegal value $value"
-    show_ussage_message
-    exit 1
+  if [ "$value" = "on" ] && [ "${container_params["ipc"]}" != "on" ]; then
+    echo "Warning: X11 apps may render slowly and freeze the compositor without IPC sharing. Consider 'podbox ipc $box_name on'." >&2
   fi
 
   override_container_params "$box_name"
@@ -643,8 +683,8 @@ function action_audio() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -655,7 +695,7 @@ function action_audio() {
     container_params["audio"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -668,8 +708,8 @@ function action_map_user() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -680,7 +720,7 @@ function action_map_user() {
     container_params["map-user"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -693,8 +733,8 @@ function action_security() {
   local value="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -705,7 +745,7 @@ function action_security() {
     container_params["security"]="$value"
   else
     echo "Error: Illegal value $value"
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -721,11 +761,15 @@ function action_desktop_add() {
   local categories="Utility"
   local icon_file=""
   local isContainerIcon=false
+  local wmclass=""
 
   while [[ "$#" -gt 0 ]]; do
     case "$1" in
       "--icon")
         icon_file="$2"
+        shift;;
+      "--wmclass")
+        wmclass="$2"
         shift;;
       "--cont_icon")
         isContainerIcon=true
@@ -736,17 +780,23 @@ function action_desktop_add() {
         shift;;
       *)
         echo "Error: unknown flag: $1"
-        show_ussage_message
+        show_usage_message
         exit 1;;
     esac
     shift
   done
 
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  local container_name="$container_prefix$box_name"
+
   if [ $isContainerIcon = true ]; then
     set +e
-    podman stop "$box_name" 2> /dev/null
+    podman stop "$container_name" 2> /dev/null
     set -e
-    podman cp "$box_name:$icon_file" ~/.icons/
+    mkdir -p "$HOME/.icons"
+    podman cp "$container_name:$icon_file" "$HOME/.icons/"
     icon_file="$HOME/.icons/$(basename "$icon_file")"
   fi
 
@@ -761,13 +811,15 @@ Type=Application
 StartupNotify=true
 Categories=$categories
 
-X-Desktop-File-Install-Version=0.23"
+X-Desktop-File-Install-Version=0.23
+"
 
-  rm -f "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
-  echo "$desktop" >> "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
+  if [ "$wmclass" != "" ]; then
+    desktop="$desktop
+StartupWMClass=$wmclass"
+  fi
 
-  checkIfBoxExist "$box_name"
-  read_settings_file "$box_name"
+  echo "$desktop" > "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
 
   container_desktop_entries["$box_name-$bin_name"]="$box_name-$bin_name"
 
@@ -779,8 +831,8 @@ function action_desktop_remove() {
   local bin_name="$2"
 
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -797,11 +849,10 @@ function action_desktop_remove() {
 function desktop_remove_all() {
   local box_name="$1"
 
-  checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
 
   for entry in "${container_desktop_entries[@]}"; do
-    rm -f "~${HOME}/.local/share/applications/$entry.desktop"
+    rm -f "${HOME}/.local/share/applications/$entry.desktop"
   done
 }
 
@@ -814,14 +865,14 @@ function action_desktop() {
     "rm") action_desktop_remove "$@" ;;
     *)
       echo "Unknown command $action"
-      show_ussage_message ;;
+      show_usage_message ;;
   esac
 }
 
 function action_port_add() {
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -839,8 +890,8 @@ function action_port_add() {
 
 function action_port_remove() {
   if [ "$#" -ne "2" ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -869,14 +920,14 @@ function action_port() {
     "rm") action_port_remove "$@" ;;
     *)
       echo "Unknown command $action"
-      show_ussage_message ;;
+      show_usage_message ;;
   esac
 }
 
 function action_install_tar() {
   if [ "$#" -lt 3 ]; then
-    echo "Error: Illegal count of arguments"
-    show_ussage_message
+    echo "Error: Illegal number of arguments"
+    show_usage_message
     exit 1
   fi
 
@@ -896,7 +947,7 @@ function action_install_tar() {
         shift;;
       *)
         echo "Error: unknown flag: $1"
-        show_ussage_message
+        show_usage_message
         exit 1;;
     esac
     shift
@@ -920,13 +971,13 @@ function action_install() {
     "tar") action_install_tar "$@" ;;
     *)
       echo "Unknown command $action"
-      show_ussage_message ;;
+      show_usage_message ;;
   esac
 }
 
 function entry() {
   if [ "$#" -eq "0" ]; then
-    show_ussage_message
+    show_usage_message
     exit 1
   fi
 
@@ -943,7 +994,6 @@ function entry() {
     "net") action_net "$@" ;;
     "ipc") action_ipc "$@" ;;
     "gui") action_gui "$@" ;;
-    "dri") action_dri "$@" ;;
     "audio") action_audio "$@" ;;
     "map-user") action_map_user "$@" ;;
     "security") action_security "$@" ;;
@@ -953,7 +1003,7 @@ function entry() {
     "system") action_run_as_system "$@" ;;
     *)
       echo "Unknown command $action"
-      show_ussage_message ;;
+      show_usage_message ;;
   esac
 }
 
