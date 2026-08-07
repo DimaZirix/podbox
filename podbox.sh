@@ -428,18 +428,26 @@ function exec_in_container() {
   local reset_container="false"
   if [ "${container_params["display_id"]}" != "$DISPLAY" ]; then
     container_params["display_id"]="$DISPLAY"
-    
+
     reset_container="true"
+  fi
+
+  local session_id="$XDG_SESSION_TYPE:$WAYLAND_DISPLAY"
+  if [ "${container_params["session_id"]}" != "$session_id" ]; then
+    container_params["session_id"]="$session_id"
+
+    reset_container="true"
+  fi
+
+  if [ -n "$XAUTHORITY" ]; then
+    rm -rf "/run/user/$user_id/xauthmnbv"
+    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
   fi
 
   if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
     container_params["XAUTHORITY"]="$XAUTHORITY"
 
     #reset_container="true"
-    if [ -n "$XAUTHORITY" ]; then
-      rm -f "/run/user/$user_id/xauthmnbv"
-      ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
-    fi
     write_settings_file "$box_name"
   fi
   
