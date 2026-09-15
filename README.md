@@ -77,6 +77,13 @@ and UTS namespaces (no per-container ports), and no cgroups (no resource
 limits). Podman prints a warning about missing sub-id ranges on every command;
 that is expected.
 
+A nested box also runs the podman API service, started on demand whenever the
+box is entered. `DOCKER_HOST` inside the box points at its socket, so the
+docker CLI (podman-docker), docker-compose and IDE Docker integrations work
+against it. Published ports are ignored there: nested containers share the box
+network, so reach services on their own ports and publish them on the box with
+`podbox port add` if the host needs them.
+
 #### Usage
 
 ```

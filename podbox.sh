@@ -320,6 +320,10 @@ function gen_podman_options() {
   if [ "${container_params["nested"]}" = "on" ]; then
     # nested podman can only mount procfs while the box /proc has no masked paths
     podman_options+=(--security-opt "unmask=/proc/*")
+    if [ "${container_params["gui"]}" != "on" ]; then
+      podman_options+=(--env "XDG_RUNTIME_DIR=/run/user/tmp")
+    fi
+    podman_options+=(--env "DOCKER_HOST=unix:///run/user/tmp/podman/podman.sock")
   fi
 
   for volume in "${container_volumes[@]}"; do
@@ -385,6 +389,23 @@ function default_image_tag() {
     tag=$(. /etc/os-release && [ "$ID" = "fedora" ] && echo "$VERSION_ID" || true)
   fi
   echo "${tag:-latest}"
+}
+
+# the box has no systemd, so the podman API service is started on demand
+function start_nested_podman_service() {
+  local container_name="$1"
+
+  podman exec --user user "$container_name" sh -c '
+    command -v podman > /dev/null || exit 0
+    dir=/run/user/tmp/podman
+    mkdir -p "$dir"
+    pid=$(cat "$dir/service.pid" 2> /dev/null)
+    if [ -n "$pid" ] && { tr "\0" " " < "/proc/$pid/cmdline"; } 2> /dev/null | grep -q "podman system service"; then
+      exit 0
+    fi
+    nohup podman system service --time=0 "unix://$dir/podman.sock" < /dev/null > /dev/null 2>&1 &
+    echo $! > "$dir/service.pid"
+  '
 }
 
 function action_create() {
@@ -540,6 +561,9 @@ function exec_in_container() {
 
   #xhost +SI:localuser:$(whoami)
   podman start "$container_name"
+  if [ "${container_params["nested"]}" = "on" ]; then
+    start_nested_podman_service "$container_name"
+  fi
   podman exec --interactive --tty --user "$userName" "$container_name" "$command" "$@"
 }
 
