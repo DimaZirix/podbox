@@ -33,7 +33,6 @@ function show_usage_message() {
   echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for the container"
   echo "  map-user Name on|off                    Map/Unmap the host user to the guest user"
   echo "  nested Name on|off                      Allow/Disallow running rootless podman inside the container"
-  echo "  system Name                             Run the container as an OS"
   echo "  desktop create Name AppCmd AppName      Create a desktop entry for a container program"
   echo "    Available Options:"
   echo "      --icon /path/to/icon                  Set an icon for the desktop entry"
@@ -50,10 +49,18 @@ function show_usage_message() {
 }
 
 container_prefix=""
+host_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -ru)}"
 declare -A container_volumes
 declare -A container_params
 declare -A container_desktop_entries
 declare -A container_port_list
+
+function update_xauthority_link() {
+  if [ -n "$XAUTHORITY" ]; then
+    rm -f "$host_runtime_dir/xauthmnbv"
+    ln -s "$XAUTHORITY" "$host_runtime_dir/xauthmnbv"
+  fi
+}
 
 function read_settings_file() {
   local box_name="$1"
@@ -188,11 +195,23 @@ function parse_config_params() {
   parse_params=("$@")
 }
 
+function rootless_network_backend() {
+  local podman_version
+  podman_version=$(podman version --format '{{.Client.Version}}' 2> /dev/null || true)
+
+  if command -v pasta > /dev/null && [ "$(printf '%s\n' 4.4 "$podman_version" | sort -V | head -n 1)" = "4.4" ]; then
+    echo pasta
+  elif command -v slirp4netns > /dev/null; then
+    echo slirp4netns
+  else
+    echo "Error: no rootless network backend found: install passt (podman 4.4+) or slirp4netns" >&2
+    return 1
+  fi
+}
+
 function gen_podman_options() {
   local box_name="$1"
   local container_name="$container_prefix$box_name"
-
-  local user_id=$(id -ru)
 
   local session_type="$XDG_SESSION_TYPE"
 
@@ -218,10 +237,15 @@ function gen_podman_options() {
     podman_options+=(--rm)
   fi
 
+  local network_backend=""
+  if [ "${container_params["net"]}" = "on" ] || [ "${container_params["net"]}" = "admin" ]; then
+    network_backend=$(rootless_network_backend) || exit 1
+  fi
+
   if [ "${container_params["net"]}" = "on" ]; then
-    podman_options+=(--network pasta)
+    podman_options+=(--network "$network_backend")
   elif [ "${container_params["net"]}" = "admin" ]; then
-    podman_options+=(--network pasta)
+    podman_options+=(--network "$network_backend")
     podman_options+=(--cap-add=NET_ADMIN)
   elif [ "${container_params["net"]}" = "host" ]; then
     podman_options+=(--network host)
@@ -248,20 +272,20 @@ function gen_podman_options() {
     fi
 
     if [ -n "$XAUTHORITY" ]; then
-      podman_options+=(--volume "/run/user/$user_id/xauthmnbv:$XAUTHORITY")
+      podman_options+=(--volume "$host_runtime_dir/xauthmnbv:$XAUTHORITY")
       podman_options+=(--env XAUTHORITY)
     fi
 
     podman_options+=(--env "XDG_RUNTIME_DIR=/run/user/tmp")
 #    podman_options+=(--env "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/tmp/bus")
-    podman_options+=(--volume "/run/user/$user_id/bus:/run/user/tmp/bus")
+    podman_options+=(--volume "$host_runtime_dir/bus:/run/user/tmp/bus")
 #    podman_options+=(--security-opt label=disable)
 #    podman_options+=(--shm-size=10g)
 #    podman_options+=(--cpus 1)
 
     if [ "$session_type" = "wayland" ]; then
       podman_options+=(--env "WAYLAND_DISPLAY=$WAYLAND_DISPLAY")
-      podman_options+=(--volume "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/run/user/tmp/$WAYLAND_DISPLAY:ro")
+      podman_options+=(--volume "$host_runtime_dir/$WAYLAND_DISPLAY:/run/user/tmp/$WAYLAND_DISPLAY:ro")
       # Prefer Wayland but fall back to X11 if the toolkit's Wayland plugin is missing
       podman_options+=(--env "QT_QPA_PLATFORM=wayland;xcb")
       podman_options+=(--env "GDK_BACKEND=wayland,x11")
@@ -278,7 +302,7 @@ function gen_podman_options() {
   # PulseAudio
   if [ "${container_params["audio"]}" = "on" ]; then
     podman_options+=(--volume /etc/machine-id:/etc/machine-id:ro)
-    podman_options+=(--volume "${XDG_RUNTIME_DIR}/pulse/native:/run/user/tmp/pulse/native:ro")
+    podman_options+=(--volume "$host_runtime_dir/pulse/native:/run/user/tmp/pulse/native:ro")
 
     container_params["map-user"]="on"
     if [ "${container_params["security"]}" = "" ]; then
@@ -294,11 +318,7 @@ function gen_podman_options() {
   fi
 
   if [ "${container_params["nested"]}" = "on" ]; then
-    # Rootless podman inside the box has to mount a fresh procfs in a child
-    # user namespace. The kernel only allows that while the parent /proc has
-    # no locked over-mounts, so the default masked and read-only /proc paths
-    # must be dropped. /sys masks are kept: nested containers sharing the
-    # box network namespace bind-mount /sys instead of mounting it.
+    # nested podman can only mount procfs while the box /proc has no masked paths
     podman_options+=(--security-opt "unmask=/proc/*")
   fi
 
@@ -311,9 +331,7 @@ function gen_podman_options() {
   done
 }
 
-# Prepares (or reverts) a running box for rootless podman inside it. Config is
-# written to /etc inside the box rather than to the user home, because the home
-# directory may be a host mount shared with the host podman.
+# config goes to /etc inside the box: the home directory may be a host mount
 function configure_nested_podman() {
   local container_name="$1"
   local value="$2"
@@ -326,13 +344,11 @@ function configure_nested_podman() {
   podman exec --user root "$container_name" sh -c '
     set -e
 
-    # newuidmap cannot gain privileges inside the box and the sub-id range
-    # useradd allocated is not mapped into it, so podman has to fall back to a
-    # single-UID mapping. With sub-id entries present it fails instead.
-    sed -i "/^user:/d" /etc/subuid /etc/subgid
+    # no usable sub-id range inside the box: force the single-UID mapping
+    for f in /etc/subuid /etc/subgid; do
+      if [ -f "$f" ]; then sed -i "/^user:/d" "$f"; fi
+    done
 
-    # Single-UID mapping: let image layers extract even when files belong to
-    # other users (ownership is squashed to the box user).
     conf=/etc/containers/storage.conf
     if [ ! -f "$conf" ]; then
       if [ -f /usr/share/containers/storage.conf ]; then
@@ -351,11 +367,7 @@ function configure_nested_podman() {
 
     mkdir -p /etc/containers/containers.conf.d
     cat > /etc/containers/containers.conf.d/podbox-nested.conf <<EOF
-# Written by podbox for nested mode.
-# The box has no tun device and no pasta, so nested containers share its
-# network namespace. The box seccomp profile forbids sethostname, so they
-# share its UTS namespace too. No cgroup delegation reaches the box, so
-# cgroups are disabled.
+# written by podbox for nested mode
 [containers]
 netns = "host"
 utsns = "host"
@@ -367,8 +379,16 @@ EOF
   '
 }
 
+function default_image_tag() {
+  local tag=""
+  if [ -r /etc/os-release ]; then
+    tag=$(. /etc/os-release && [ "$ID" = "fedora" ] && echo "$VERSION_ID" || true)
+  fi
+  echo "${tag:-latest}"
+}
+
 function action_create() {
-  local image_name="registry.fedoraproject.org/fedora:$(rpm -E %fedora)"
+  local image_name="registry.fedoraproject.org/fedora:$(default_image_tag)"
   local box_name="$1"
   shift
 
@@ -391,15 +411,13 @@ function action_create() {
   local user_id=$(id -ru)
   gen_podman_options "$box_name"
 
-  if [ -n "$XAUTHORITY" ]; then
-    rm -f "/run/user/$user_id/xauthmnbv"
-    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
-  fi
+  update_xauthority_link
 
   local container_name="$container_prefix$box_name"
   podman create --stop-signal SIGABRT --interactive --tty --name "$container_name" "$image_name"
   podman start "$container_name"
-  podman exec --user root "$container_name" useradd -m --uid "$user_id" user
+  podman exec --user root "$container_name" sh -c \
+    'if command -v useradd > /dev/null; then useradd -m --uid "$1" user; else adduser -D -u "$1" user; fi' sh "$user_id"
   podman exec --user root "$container_name" mkdir -p "/run/user/tmp/pulse"
   podman exec --user root "$container_name" chown -R "$user_id:$user_id" "/run/user/tmp"
   if [ "${container_params["nested"]}" = "on" ]; then
@@ -415,15 +433,10 @@ function action_create() {
 
 function reset_container_params() {
   local box_name="$1"
-  local user_id=$(id -ru)
-
   local container_name="$container_prefix$box_name"
   gen_podman_options "$box_name"
 
-  if [ -n "$XAUTHORITY" ]; then
-    rm -f "/run/user/$user_id/xauthmnbv"
-    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
-  fi
+  update_xauthority_link
 
   set +e
   podman stop --timeout 2 "$container_name" 2> /dev/null
@@ -436,18 +449,13 @@ function reset_container_params() {
 
 function override_container_params() {
   local box_name="$1"
-  local user_id=$(id -ru)
-
   local container_name="$container_prefix$box_name"
   gen_podman_options "$box_name"
 
   if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
     container_params["XAUTHORITY"]="$XAUTHORITY"
 
-    if [ -n "$XAUTHORITY" ]; then
-      rm -f "/run/user/$user_id/xauthmnbv"
-      ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
-    fi
+    update_xauthority_link
     write_settings_file "$box_name"
   fi
 
@@ -491,8 +499,6 @@ function exec_in_container() {
   local command="$1"
   shift
 
-  local user_id=$(id -ru)
-
   checkIfBoxExist "$box_name"
   read_settings_file "$box_name"
   
@@ -510,10 +516,7 @@ function exec_in_container() {
     reset_container="true"
   fi
 
-  if [ -n "$XAUTHORITY" ]; then
-    rm -rf "/run/user/$user_id/xauthmnbv"
-    ln -s "$XAUTHORITY" "/run/user/$user_id/xauthmnbv"
-  fi
+  update_xauthority_link
 
   if [ "${container_params["XAUTHORITY"]}" != "$XAUTHORITY" ]; then
     container_params["XAUTHORITY"]="$XAUTHORITY"
@@ -538,25 +541,6 @@ function exec_in_container() {
   #xhost +SI:localuser:$(whoami)
   podman start "$container_name"
   podman exec --interactive --tty --user "$userName" "$container_name" "$command" "$@"
-}
-
-function action_run_as_system() {
-  local box_name="$1"
-  shift
-
-  checkIfBoxExist "$box_name"
-  read_settings_file "$box_name"
-  gen_podman_options "$box_name"
-
-  local container_name="$container_prefix$box_name"
-
-  set +e
-  podman stop --timeout 2 "$container_name" 2> /dev/null
-  podman commit "$container_name" "$container_name" 2> /dev/null
-  podman rm "$container_name" 2> /dev/null
-  set -e
-  
-  podman run --interactive --systemd=always --tty --user root "${podman_options[@]}" "$container_name" "/sbin/init"
 }
 
 function action_bash() {
@@ -910,11 +894,17 @@ function action_desktop_add() {
     icon_file="$HOME/.icons/$(basename "$icon_file")"
   fi
 
+  local podbox_cmd
+  podbox_cmd="$(readlink -f "$0")"
+  if [[ "$podbox_cmd" == *[[:space:]]* ]]; then
+    podbox_cmd="\"$podbox_cmd\""
+  fi
+
   desktop="[Desktop Entry]
 Version=1.0
 Name=$icon_title
 GenericName=$icon_title
-Exec=podbox exec $box_name $bin_name
+Exec=$podbox_cmd exec $box_name $bin_name
 Icon=$icon_file
 Terminal=false
 Type=Application
@@ -929,6 +919,7 @@ X-Desktop-File-Install-Version=0.23
 StartupWMClass=$wmclass"
   fi
 
+  mkdir -p "${HOME}/.local/share/applications"
   echo "$desktop" > "${HOME}/.local/share/applications/$box_name-$bin_name.desktop"
 
   container_desktop_entries["$box_name-$bin_name"]="$box_name-$bin_name"
@@ -1111,7 +1102,6 @@ function entry() {
     "desktop") action_desktop "$@" ;;
     "port") action_port "$@" ;;
     "install") action_install "$@" ;;
-    "system") action_run_as_system "$@" ;;
     *)
       echo "Unknown command $action"
       show_usage_message ;;

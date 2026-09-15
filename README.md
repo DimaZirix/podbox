@@ -110,7 +110,6 @@ Available Commands:
   security Name on|off|unconfined         Enable/Disable SELinux permissions for the container
   map-user Name on|off                    Map/Unmap the host user to the guest user
   nested Name on|off                      Allow/Disallow running rootless podman inside the container
-  system Name                             Run the container as an OS
   desktop create Name AppCmd AppName      Create a desktop entry for a container program
     Available Options:
       --icon /path/to/icon                  Set an icon for the desktop entry
