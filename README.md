@@ -61,6 +61,22 @@ podbox desktop create torbrowser torbrowser 'TorBrowser in PodBox' --icon torbro
 podbox exec torbrowser torbrowser
 ```
 
+#### Run podman inside a container
+
+```shell script
+podbox create devbox --net --nested
+podbox exec devbox --root dnf install podman -y
+podbox exec devbox podman run --rm docker.io/library/alpine echo hello
+# (use `podbox nested Name on` to enable it on an existing container)
+```
+
+Nested mode drops the default `/proc` masks of the box and configures podman
+inside it for the constraints of a rootless container: a single-UID mapping
+(images that switch to a non-root user do not work), sharing the box network
+and UTS namespaces (no per-container ports), and no cgroups (no resource
+limits). Podman prints a warning about missing sub-id ranges on every command;
+that is expected.
+
 #### Usage
 
 ```
@@ -75,6 +91,7 @@ Available Commands:
       --net                                 Add network permission
       --security on|off|unconfined          Enable/Disable SELinux permissions for the container
       --map-user                            Map the host user to the guest user
+      --nested                              Allow running rootless podman inside the container
       --volume /host/path[:/cont/path]      Mount a path into the container
       --port port:port/tcp                  Publish a container port to the host
   bash Name [--root]                      Run a shell inside the container
@@ -92,6 +109,7 @@ Available Commands:
   gui Name on|off                         Add/Remove X11 permission to run programs with a GUI
   security Name on|off|unconfined         Enable/Disable SELinux permissions for the container
   map-user Name on|off                    Map/Unmap the host user to the guest user
+  nested Name on|off                      Allow/Disallow running rootless podman inside the container
   system Name                             Run the container as an OS
   desktop create Name AppCmd AppName      Create a desktop entry for a container program
     Available Options:

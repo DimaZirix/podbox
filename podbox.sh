@@ -14,6 +14,7 @@ function show_usage_message() {
   echo "      --net                                 Add network permission"
   echo "      --security on|off|unconfined          Enable/Disable SELinux permissions for the container"
   echo "      --map-user                            Map the host user to the guest user"
+  echo "      --nested                              Allow running rootless podman inside the container"
   echo "      --volume /host/path[:/cont/path]      Mount a path into the container"
   echo "      --port port:port/tcp                  Publish a container port to the host"
   echo "  bash Name [--root]                      Run a shell inside the container"
@@ -31,6 +32,7 @@ function show_usage_message() {
   echo "  gui Name on|off                         Add/Remove X11 permission to run programs with a GUI"
   echo "  security Name on|off|unconfined         Enable/Disable SELinux permissions for the container"
   echo "  map-user Name on|off                    Map/Unmap the host user to the guest user"
+  echo "  nested Name on|off                      Allow/Disallow running rootless podman inside the container"
   echo "  system Name                             Run the container as an OS"
   echo "  desktop create Name AppCmd AppName      Create a desktop entry for a container program"
   echo "    Available Options:"
@@ -157,6 +159,7 @@ function parse_config_params() {
       "--audio") container_params["audio"]="on";;
       "--ipc") container_params["ipc"]="on";;
       "--map-user") container_params["map-user"]="on";;
+      "--nested") container_params["nested"]="on";;
       "--net") container_params["net"]="on";;
       "--security")
         if [ "$2" = "on" ] || [ "$2" = "off" ] || [ "$2" = "unconfined" ]; then
@@ -290,6 +293,15 @@ function gen_podman_options() {
     podman_options+=(--security-opt seccomp=unconfined)
   fi
 
+  if [ "${container_params["nested"]}" = "on" ]; then
+    # Rootless podman inside the box has to mount a fresh procfs in a child
+    # user namespace. The kernel only allows that while the parent /proc has
+    # no locked over-mounts, so the default masked and read-only /proc paths
+    # must be dropped. /sys masks are kept: nested containers sharing the
+    # box network namespace bind-mount /sys instead of mounting it.
+    podman_options+=(--security-opt "unmask=/proc/*")
+  fi
+
   for volume in "${container_volumes[@]}"; do
     podman_options+=(--volume "${volume}")
   done
@@ -297,6 +309,62 @@ function gen_podman_options() {
   for port in "${container_port_list[@]}"; do
     podman_options+=(--publish "${port}")
   done
+}
+
+# Prepares (or reverts) a running box for rootless podman inside it. Config is
+# written to /etc inside the box rather than to the user home, because the home
+# directory may be a host mount shared with the host podman.
+function configure_nested_podman() {
+  local container_name="$1"
+  local value="$2"
+
+  if [ "$value" != "on" ]; then
+    podman exec --user root "$container_name" rm -f /etc/containers/containers.conf.d/podbox-nested.conf
+    return
+  fi
+
+  podman exec --user root "$container_name" sh -c '
+    set -e
+
+    # newuidmap cannot gain privileges inside the box and the sub-id range
+    # useradd allocated is not mapped into it, so podman has to fall back to a
+    # single-UID mapping. With sub-id entries present it fails instead.
+    sed -i "/^user:/d" /etc/subuid /etc/subgid
+
+    # Single-UID mapping: let image layers extract even when files belong to
+    # other users (ownership is squashed to the box user).
+    conf=/etc/containers/storage.conf
+    if [ ! -f "$conf" ]; then
+      if [ -f /usr/share/containers/storage.conf ]; then
+        cp /usr/share/containers/storage.conf "$conf"
+      else
+        printf "[storage]\ndriver = \"overlay\"\n\n[storage.options]\n" > "$conf"
+      fi
+    fi
+    if grep -q "^[# ]*ignore_chown_errors *=" "$conf"; then
+      sed -i "s/^[# ]*ignore_chown_errors *=.*/ignore_chown_errors = \"true\"/" "$conf"
+    elif grep -q "^\[storage.options\]" "$conf"; then
+      sed -i "/^\[storage.options\]/a ignore_chown_errors = \"true\"" "$conf"
+    else
+      printf "\n[storage.options]\nignore_chown_errors = \"true\"\n" >> "$conf"
+    fi
+
+    mkdir -p /etc/containers/containers.conf.d
+    cat > /etc/containers/containers.conf.d/podbox-nested.conf <<EOF
+# Written by podbox for nested mode.
+# The box has no tun device and no pasta, so nested containers share its
+# network namespace. The box seccomp profile forbids sethostname, so they
+# share its UTS namespace too. No cgroup delegation reaches the box, so
+# cgroups are disabled.
+[containers]
+netns = "host"
+utsns = "host"
+cgroups = "disabled"
+
+[engine]
+cgroup_manager = "cgroupfs"
+EOF
+  '
 }
 
 function action_create() {
@@ -334,6 +402,9 @@ function action_create() {
   podman exec --user root "$container_name" useradd -m --uid "$user_id" user
   podman exec --user root "$container_name" mkdir -p "/run/user/tmp/pulse"
   podman exec --user root "$container_name" chown -R "$user_id:$user_id" "/run/user/tmp"
+  if [ "${container_params["nested"]}" = "on" ]; then
+    configure_nested_podman "$container_name" on
+  fi
   podman stop "$container_name"
   podman commit "$container_name" "$container_name"
   podman rm "$container_name"
@@ -737,6 +808,36 @@ function action_map_user() {
   write_settings_file "$box_name"
 }
 
+function action_nested() {
+  local box_name="$1"
+  local value="$2"
+
+  if [ "$#" -ne "2" ]; then
+    echo "Error: Illegal number of arguments"
+    show_usage_message
+    exit 1
+  fi
+
+  checkIfBoxExist "$box_name"
+  read_settings_file "$box_name"
+
+  if [ "$value" = "on" ] || [ "$value" = "off" ]; then
+    container_params["nested"]="$value"
+  else
+    echo "Error: Illegal value $value"
+    show_usage_message
+    exit 1
+  fi
+
+  override_container_params "$box_name"
+  write_settings_file "$box_name"
+
+  local container_name="$container_prefix$box_name"
+  podman start "$container_name" > /dev/null
+  configure_nested_podman "$container_name" "$value"
+  podman stop --timeout 2 "$container_name" > /dev/null
+}
+
 function action_security() {
   local box_name="$1"
   local value="$2"
@@ -1005,6 +1106,7 @@ function entry() {
     "gui") action_gui "$@" ;;
     "audio") action_audio "$@" ;;
     "map-user") action_map_user "$@" ;;
+    "nested") action_nested "$@" ;;
     "security") action_security "$@" ;;
     "desktop") action_desktop "$@" ;;
     "port") action_port "$@" ;;
